@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ui from "@/styles/ui.module.scss";
 
 import { BUILD_ORDER, QUESTS } from "../engine";
@@ -41,10 +41,33 @@ export default function GameShell() {
         setSt(prev => gameReduce(prev, { type: "CANCEL_SELECTION" }).state);
     }, []);
 
-    const onPlace = useCallback((x: number, y: number) => {
+    const onTileClick = useCallback((x: number, y: number) => {
         setSt(prev => {
-            const r = gameReduce(prev, { type: "PLACE", x, y });
-            popToast(r.place?.ok ? "Baustelle" : "Nicht möglich", r.place?.msg || "");
+            if (prev.sel) {
+                const r = gameReduce(prev, { type: "PLACE", x, y });
+                popToast(r.result?.ok ? "Baustelle" : "Nicht möglich", r.result?.msg || "");
+                return r.state;
+            }
+
+            const cell = prev.grid[y]?.[x];
+            if (!cell) {
+                popToast("Info", "Hier ist nichts");
+                return prev;
+            }
+
+            if (!cell.done) {
+                popToast("Info", "Wird gerade gebaut");
+                return prev;
+            }
+
+            if (cell.job?.state === "ready") {
+                const r = gameReduce(prev, { type: "COLLECT", x, y });
+                popToast(r.result?.ok ? "Collect" : "Nicht möglich", r.result?.msg || "");
+                return r.state;
+            }
+
+            const r = gameReduce(prev, { type: "START_JOB", x, y });
+            popToast(r.result?.ok ? "Aktion" : "Nicht möglich", r.result?.msg || "");
             return r.state;
         });
     }, [popToast]);
@@ -77,7 +100,7 @@ export default function GameShell() {
             <Topbar st={st} />
 
             <div className={ui.stage}>
-                <WorldCanvas st={st} onPlace={onPlace} onCancel={onCancel} />
+                <WorldCanvas st={st} onPlace={onTileClick} onCancel={onCancel} />
                 <QuestDrawer st={st} onClaim={onClaim} />
                 <Buildbar st={st} order={BUILD_ORDER} onSelect={onSelect} onSave={onSave} onReset={onReset} />
                 <Toast data={toast} />

@@ -1,7 +1,22 @@
-import { GameState, BuildingKey, PlaceResult, Quest } from "../types";
+import type { GameState, BuildingKey, PlaceResult, Quest, Villager } from "../types";
 import { BUILDINGS } from "./defs";
 import { uid } from "@/shared/utils/uid";
 import { recalcCap } from "./selectors";
+
+const getIdleVillager = (s: GameState): Villager | null => {
+    for (const v of s.villagers) {
+        if (v.task.type === "idle") return v;
+    }
+    return null;
+};
+
+const setVillagerToBuilding = (v: Villager, x: number, y: number) => {
+    v.task = { type: "toBuilding", target: { x, y } };
+};
+
+const setVillagerIdle = (v: Villager) => {
+    v.task = { type: "idle" };
+};
 
 export const selectBuilding = (s: GameState, k: BuildingKey) => {
     s.sel = (s.sel === k) ? null : k;
@@ -39,13 +54,70 @@ export const placeBuilding = (s: GameState, x: number, y: number): PlaceResult =
         type: k,
         done: false,
         remain: d.time,
-        started: s.tick
+        started: s.tick,
+        job: undefined
     };
 
     s.sel = null;
     recalcCap(s);
 
     return { ok: true, msg: `${d.name} wird gebaut` };
+};
+
+export const startProduction = (s: GameState, x: number, y: number): PlaceResult => {
+    const c = s.grid[y]?.[x];
+    if (!c) return { ok: false, msg: "Nichts da" };
+    if (!c.done) return { ok: false, msg: "Wird gebaut" };
+
+    if (c.job?.state === "working") return { ok: false, msg: "Läuft bereits" };
+    if (c.job?.state === "ready") return { ok: false, msg: "Erst einsammeln" };
+
+    const def = BUILDINGS[c.type];
+    const prod = def.prod;
+    if (!prod) return { ok: false, msg: "Keine Produktion" };
+
+    const v = getIdleVillager(s);
+    if (!v) return { ok: false, msg: "Keine Dorfbewohner frei" };
+
+    const out: Partial<Record<"wood" | "food" | "gems" | "pop" | "cap", number>> = {};
+    if (prod.wood) out.wood = prod.wood;
+    if (prod.food) out.food = prod.food;
+
+    c.job = {
+        type: "produce",
+        state: "working",
+        total: 8,
+        remain: 8,
+        output: out,
+        workerId: v.id
+    };
+
+    setVillagerToBuilding(v, x, y);
+
+    return { ok: true, msg: `${v.name} arbeitet bei ${def.name}` };
+};
+
+export const collectOutput = (s: GameState, x: number, y: number): PlaceResult => {
+    const c = s.grid[y]?.[x];
+    if (!c || !c.done || !c.job) return { ok: false, msg: "Nichts da" };
+    if (c.job.state !== "ready") return { ok: false, msg: "Noch nicht fertig" };
+
+    const out = c.job.output || {};
+    s.res.wood += out.wood || 0;
+    s.res.food += out.food || 0;
+    s.res.gems += out.gems || 0;
+    s.res.pop += out.pop || 0;
+
+    const wid = c.job.workerId;
+    if (wid) {
+        const v = s.villagers.find(x => x.id === wid);
+        if (v) setVillagerIdle(v);
+    }
+
+    c.job = undefined;
+    recalcCap(s);
+
+    return { ok: true, msg: "Eingesammelt" };
 };
 
 export const claimQuest = (s: GameState, q: Quest) => {

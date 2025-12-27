@@ -1,6 +1,13 @@
 import { GameState, BuildingKey, Quest, PlaceResult } from "../types";
 import { applyTick } from "./tick";
-import { cancelSelection, claimQuest, placeBuilding, selectBuilding } from "./actions";
+import {
+    cancelSelection,
+    claimQuest,
+    collectOutput,
+    placeBuilding,
+    selectBuilding,
+    startProduction
+} from "./actions";
 import { createInitialState } from "./reducersHelpers";
 
 export type GameAction =
@@ -8,13 +15,15 @@ export type GameAction =
     | { type: "SELECT_BUILDING"; key: BuildingKey }
     | { type: "CANCEL_SELECTION" }
     | { type: "PLACE"; x: number; y: number }
+    | { type: "START_JOB"; x: number; y: number }
+    | { type: "COLLECT"; x: number; y: number }
     | { type: "CLAIM"; quest: Quest }
     | { type: "RESET" }
     | { type: "LOAD"; state: GameState };
 
 export type ReduceResult = {
     state: GameState;
-    place?: PlaceResult;
+    result?: PlaceResult;
     claimed?: boolean;
 };
 
@@ -38,7 +47,17 @@ export const gameReduce = (s: GameState, a: GameAction): ReduceResult => {
 
     if (a.type === "PLACE") {
         const r = placeBuilding(ns, a.x, a.y);
-        return { state: ns, place: r };
+        return { state: ns, result: r };
+    }
+
+    if (a.type === "START_JOB") {
+        const r = startProduction(ns, a.x, a.y);
+        return { state: ns, result: r };
+    }
+
+    if (a.type === "COLLECT") {
+        const r = collectOutput(ns, a.x, a.y);
+        return { state: ns, result: r };
     }
 
     if (a.type === "CLAIM") {
@@ -56,8 +75,3 @@ export const gameReduce = (s: GameState, a: GameAction): ReduceResult => {
 
     return { state: ns };
 };
-
-/**
- * Helpers liegen separat, damit reducers.ts sauber bleibt.
- * (Datei kommt als nächstes.)
- */

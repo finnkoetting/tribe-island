@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ws from "@/styles/world.module.scss";
-import type { GameState, Cell, BuildingKey } from "../types";
+import type { GameState, Cell } from "../types";
 import { BUILDINGS } from "../engine";
 import { TILE, PAD, PICK_THRESHOLD } from "../engine/constants";
 
@@ -50,6 +50,39 @@ const rr = (ctx: CtxRR, x: number, y: number, w: number, h: number, r: number) =
     ctx.quadraticCurveTo(x, y, x + rad, y);
 };
 
+const drawBar = (ctx: CtxRR, x: number, y: number, w: number, h: number, pct: number) => {
+    rr(ctx, x, y, w, h, 999);
+    ctx.fillStyle = "rgba(255,255,255,.10)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.14)";
+    ctx.stroke();
+
+    rr(ctx, x, y, Math.max(0, w * pct), h, 999);
+    ctx.fillStyle = "rgba(34,211,238,.92)";
+    ctx.fill();
+};
+
+const drawBadge = (ctx: CtxRR, x: number, y: number, text: string) => {
+    ctx.font = `800 12px ui-sans-serif, system-ui`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const padX = 10;
+    const w = Math.max(28, ctx.measureText(text).width + padX * 2);
+    const h = 22;
+    const x0 = x - w / 2;
+    const y0 = y - h / 2;
+
+    rr(ctx, x0, y0, w, h, 999);
+    ctx.fillStyle = "rgba(2,6,23,.85)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(148,163,184,.22)";
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(238,246,255,.92)";
+    ctx.fillText(text, x, y + 1);
+};
+
 export default function WorldCanvas({
     st,
     onPlace,
@@ -62,7 +95,10 @@ export default function WorldCanvas({
     const ref = useRef<HTMLCanvasElement | null>(null);
     const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
-    const dpr = useMemo(() => (typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1)), []);
+    const dpr = useMemo(
+        () => (typeof window === "undefined" ? 1 : Math.max(1, window.devicePixelRatio || 1)),
+        []
+    );
 
     const render = useCallback(() => {
         const c = ref.current;
@@ -80,6 +116,7 @@ export default function WorldCanvas({
         const w = r.width, h = r.height;
         ctx.clearRect(0, 0, w, h);
 
+        // Background island glow
         const cx = w * 0.52, cy = h * 0.58;
         ctx.beginPath();
         ctx.ellipse(cx, cy, w * 0.42, h * 0.28, 0, 0, Math.PI * 2);
@@ -91,6 +128,7 @@ export default function WorldCanvas({
         ctx.fillStyle = "rgba(251,191,36,.08)";
         ctx.fill();
 
+        // Tiles
         for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
             const p = iso(x, y, st.w);
             const hw = TILE / 2, hh = TILE / 4;
@@ -103,13 +141,16 @@ export default function WorldCanvas({
             ctx.closePath();
 
             const isH = hover && hover.x === x && hover.y === y;
+
             ctx.fillStyle = isH ? "rgba(34,211,238,.22)" : "rgba(34,197,94,.22)";
             ctx.fill();
+
             ctx.strokeStyle = isH ? "rgba(34,211,238,.55)" : "rgba(255,255,255,.08)";
             ctx.lineWidth = 1;
             ctx.stroke();
         }
 
+        // Buildings sorted by depth
         const list: { x: number; y: number; c: FilledCell; z: number }[] = [];
         for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
             const cell = st.grid[y][x];
@@ -119,34 +160,88 @@ export default function WorldCanvas({
 
         for (const it of list) {
             const p = iso(it.x, it.y, st.w);
-            const d = BUILDINGS[it.c.type as BuildingKey];
+            const def = BUILDINGS[it.c.type];
 
+            // Shadow blob
             ctx.beginPath();
             ctx.ellipse(p.x, p.y + 28, 22, 10, 0, 0, Math.PI * 2);
             ctx.fillStyle = it.c.done ? "rgba(0,0,0,.28)" : "rgba(0,0,0,.20)";
             ctx.fill();
 
-            ctx.font = `700 28px ui-sans-serif, system-ui`;
+            // Icon
+            ctx.font = `800 28px ui-sans-serif, system-ui`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillStyle = it.c.done ? "rgba(238,246,255,.95)" : "rgba(238,246,255,.55)";
-            ctx.fillText(d.icon, p.x, p.y + 10);
+            ctx.fillText(def.icon, p.x, p.y + 10);
 
+            // Build progress
             if (!it.c.done) {
-                const bw = 52, bh = 10, x0 = p.x - bw / 2, y0 = p.y + 36;
+                const bw = 56, bh = 10;
+                const x0 = p.x - bw / 2;
+                const y0 = p.y + 40;
 
-                rr(ctx, x0, y0, bw, bh, 999);
-                ctx.fillStyle = "rgba(255,255,255,.08)";
-                ctx.fill();
-
-                const prog = 1 - (it.c.remain / d.time);
-                rr(ctx, x0, y0, bw * prog, bh, 999);
-                ctx.fillStyle = "rgba(251,191,36,.88)";
-                ctx.fill();
-
-                ctx.strokeStyle = "rgba(255,255,255,.12)";
-                ctx.stroke();
+                const pct = 1 - (it.c.remain / def.time);
+                drawBar(ctx, x0, y0, bw, bh, pct);
+                continue;
             }
+
+            // Job progress / Ready badge
+            const j = it.c.job;
+            if (j?.state === "working") {
+                const bw = 62, bh = 10;
+                const x0 = p.x - bw / 2;
+                const y0 = p.y + 40;
+
+                const pct = 1 - (j.remain / Math.max(1, j.total));
+                drawBar(ctx, x0, y0, bw, bh, pct);
+                drawBadge(ctx, p.x, y0 - 16, "⏳");
+            } else if (j?.state === "ready") {
+                drawBadge(ctx, p.x, p.y + 42, "✅ Collect");
+            }
+        }
+
+        // Villagers (render last for readability)
+        const vill = [...st.villagers].map(v => ({ v, z: v.pos.x + v.pos.y }));
+        vill.sort((a, b) => a.z - b.z);
+
+        for (const it of vill) {
+            const v = it.v;
+
+            // Map villager world-pos (grid units) to iso
+            const px = v.pos.x - 0.5;
+            const py = v.pos.y - 0.5;
+            const p = iso(px, py, st.w);
+
+            // Shadow
+            ctx.beginPath();
+            ctx.ellipse(p.x, p.y + 30, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(0,0,0,.26)";
+            ctx.fill();
+
+            // Body (simple)
+            ctx.beginPath();
+            ctx.arc(p.x, p.y + 18, 8.5, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(238,246,255,.92)";
+            ctx.fill();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(p.x, p.y + 8, 6, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(226,232,240,.92)";
+            ctx.fill();
+
+            // Task indicator
+            if (v.task.type !== "idle") {
+                drawBadge(ctx, p.x, p.y - 10, "👷");
+            }
+
+            // Name (tiny)
+            ctx.font = `700 10px ui-sans-serif, system-ui`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "rgba(203,213,225,.85)";
+            ctx.fillText(v.name, p.x, p.y + 42);
         }
     }, [st, hover, dpr]);
 
@@ -173,7 +268,7 @@ export default function WorldCanvas({
         <div className={ws.world}>
             <div className={ws.hint}>
                 <div className={ws.tag}>{st.w}×{st.h}</div>
-                <div className={ws.txt}>Bauen: unten wählen → Feld klicken · ESC/Rightclick = Abbrechen</div>
+                <div className={ws.txt}>Bauen: unten wählen → Feld klicken · Ohne Auswahl: Gebäude klicken → Job/Collect</div>
             </div>
 
             <canvas
