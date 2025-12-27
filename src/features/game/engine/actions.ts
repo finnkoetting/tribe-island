@@ -2,6 +2,7 @@ import type { GameState, BuildingKey, PlaceResult, Quest, Villager } from "../ty
 import { BUILDINGS } from "./defs";
 import { uid } from "@/shared/utils/uid";
 import { recalcCap } from "./selectors";
+import { syncVillagers } from "./state";
 
 const getIdleVillager = (s: GameState): Villager | null => {
     for (const v of s.villagers) {
@@ -116,6 +117,7 @@ export const collectOutput = (s: GameState, x: number, y: number): PlaceResult =
 
     c.job = undefined;
     recalcCap(s);
+    syncVillagers(s);
 
     return { ok: true, msg: "Eingesammelt" };
 };
@@ -133,6 +135,7 @@ export const claimQuest = (s: GameState, q: Quest) => {
     s.res.pop += (r.pop || 0);
 
     recalcCap(s);
+    syncVillagers(s);
 
     return { ok: true };
 };

@@ -1,6 +1,6 @@
 export type ResKey = "wood" | "food" | "gems" | "pop" | "cap";
 
-export type BuildingKey = "hut" | "farm" | "lumber" | "storage" | "totem";
+export type BuildingKey = "townhall" | "hut" | "farm" | "lumber" | "storage" | "totem";
 
 export type BuildingVibe = "home" | "prod" | "support";
 

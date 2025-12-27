@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ui from "@/styles/ui.module.scss";
 
-import { BUILD_ORDER, QUESTS } from "../engine";
+import { BUILD_ORDER, QUESTS, TICK_MS } from "../engine";
 import { gameReduce, saveGame, loadGame, clearSave } from "../uiGlue";
 
 import Topbar from "./Topbar";
@@ -29,7 +29,7 @@ export default function GameShell() {
     useEffect(() => {
         const iv = setInterval(() => {
             setSt(prev => gameReduce(prev, { type: "TICK" }).state);
-        }, 1000);
+        }, TICK_MS);
         return () => clearInterval(iv);
     }, []);
 

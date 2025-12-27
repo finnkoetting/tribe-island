@@ -1,6 +1,7 @@
 import type { GameState } from "../types";
 import { POP_GROWTH_EVERY_TICKS, RES_MAX } from "./constants";
 import { recalcCap } from "./selectors";
+import { syncVillagers } from "./state";
 import { clamp } from "@/shared/utils/clamp";
 
 const stepToward = (px: number, py: number, tx: number, ty: number, spd: number) => {
@@ -73,6 +74,8 @@ export const applyTick = (s: GameState) => {
             }
         }
     }
+
+    syncVillagers(s);
 
     // 5) Clamp resources
     s.res.wood = clamp(s.res.wood, 0, RES_MAX);

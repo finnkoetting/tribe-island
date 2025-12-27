@@ -3,7 +3,19 @@ import { BuildingDef, BuildingKey, Quest, GameState } from "../types";
 export const BUILD_W = 12;
 export const BUILD_H = 8;
 
-export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
+type AnyBuildingKey = BuildingKey | "townhall";
+
+export const BUILDINGS: Record<AnyBuildingKey, BuildingDef> = {
+    townhall: {
+        key: "townhall",
+        name: "Rathaus",
+        icon: "🏛️",
+        time: 0,
+        cost: {},
+        cap: 1,
+        vibe: "home",
+        desc: "Startpunkt der Siedlung"
+    } as unknown as BuildingDef,
     hut: {
         key: "hut",
         name: "Hütte",

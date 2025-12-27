@@ -33,7 +33,7 @@ export default function QuestDrawer({ st, onClaim }: { st: GameState; onClaim: (
 
                     return (
                         <div className={ui.quest} key={q.id}>
-                            <div className={ui.top}>
+                            <div className={ui.questTop}>
                                 <div className={ui.name}>{q.name}</div>
                                 <button disabled={!ok || claimed} onClick={() => onClaim(q.id)}>
                                     {claimed ? "Erledigt" : "Einsammeln"}
