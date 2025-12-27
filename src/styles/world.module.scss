@@ -1,0 +1,36 @@
+.world {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 140px); // Platz für Topbar + Buildbar
+    background: radial-gradient(ellipse at center, #0b1d26 0%, #020617 70%);
+    overflow: hidden;
+}
+
+.world canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.hint {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    z-index: 2;
+    font-size: 13px;
+    color: #cbd5f5;
+}
+
+.tag {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+.txt {
+    opacity: 0.8;
+}
