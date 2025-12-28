@@ -3,13 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as engine from "../../src/game/engine";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
-import type {
-    Building,
-    BuildingTypeId,
-    GameState,
-    Vec2,
-    VillagerJobId
-} from "../../src/game/types/GameState";
+import type { Building, BuildingTypeId, GameState, Vec2, VillagerJobId } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
 
 const JOBS: VillagerJobId[] = ["idle", "gatherer", "builder", "researcher", "fisher", "guard"];
@@ -68,14 +62,46 @@ export default function GameClient() {
     };
 
     return (
-        <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                <h1 style={{ fontSize: 18, margin: 0 }}>Tribez – Debug</h1>
+        <div
+            style={{
+                minHeight: "100vh",
+                display: "grid",
+                gridTemplateRows: "auto 1fr",
+                background: "radial-gradient(circle at 20% 20%, #eef5ff, #dde7f5 45%, #d4dfef 70%)",
+                color: "#0f172a",
+                fontFamily: "'Inter', system-ui, sans-serif"
+            }}
+        >
+            <header
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "14px 18px",
+                    gap: 12,
+                    borderBottom: "1px solid rgba(0,0,0,0.08)",
+                    backdropFilter: "blur(6px)",
+                    background: "rgba(255,255,255,0.7)"
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#4f46e5,#22c55e)" }} />
+                    <div>
+                        <div style={{ fontWeight: 800, letterSpacing: -0.2 }}>Tribe Island</div>
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>Tag {st.time.day} · {st.time.phase} · {formatClock(st)}</div>
+                    </div>
+                </div>
 
                 <div style={{ display: "flex", gap: 8 }}>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 0 }))}>Pause</Btn>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 1 }))}>Normal</Btn>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 2 }))}>Fast</Btn>
+                    <Btn onClick={() => setSt(s => ({ ...s, speed: 0 }))} active={st.speed === 0}>
+                        Pause
+                    </Btn>
+                    <Btn onClick={() => setSt(s => ({ ...s, speed: 1 }))} active={st.speed === 1}>
+                        Normal
+                    </Btn>
+                    <Btn onClick={() => setSt(s => ({ ...s, speed: 2 }))} active={st.speed === 2}>
+                        Fast
+                    </Btn>
                     <Btn
                         onClick={() => {
                             lastRef.current = 0;
@@ -84,239 +110,231 @@ export default function GameClient() {
                             setPy(32);
                         }}
                     >
-                        New Game
+                        New Run
                     </Btn>
                 </div>
-            </div>
+            </header>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-                <Badge label={`Tag ${st.time.day}`} />
-                <Badge label={`Phase: ${st.time.phase}`} />
-                <Badge label={`Speed: ${st.speed === 0 ? "Pause" : st.speed === 1 ? "Normal" : "Fast"}`} />
-                <Badge label={`Beeren: ${st.inventory.berries}`} />
-                <Badge label={`Hunger-Alert: ${hunger}`} />
-                <Badge label={`Buildings: ${buildings.length}`} />
-                <Badge label={`Uhr: ${formatClock(st)}`} />
-            </div>
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "260px 1fr 340px",
+                    gap: 14,
+                    padding: "14px 18px",
+                    alignItems: "stretch"
+                }}
+            >
+                <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+                    <Panel title="Ressourcen">
+                        <ResRow label="Holz" value={st.inventory.wood} />
+                        <ResRow label="Beeren" value={st.inventory.berries} />
+                        <ResRow label="Stein" value={st.inventory.stone} />
+                        <ResRow label="Fisch" value={st.inventory.fish} />
+                        <ResRow label="Fasern" value={st.inventory.fibers} />
+                    </Panel>
 
-            <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-                <div
-                    style={{
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        border: "1px solid rgba(0,0,0,0.08)",
-                        background: "linear-gradient(135deg, #f7fbff, #eef3ff)"
-                    }}
-                >
-                    <div style={{ fontWeight: 600 }}>Build Mode</div>
-                    {BUILDABLES.map(type => (
-                        <Btn key={type} onClick={() => setBuildMode(mode => (mode === type ? null : type))} active={buildMode === type}>
-                            {type}
-                        </Btn>
-                    ))}
-                    <Btn onClick={() => setBuildMode(null)} disabled={!buildMode}>
-                        Clear
-                    </Btn>
-                    <div style={{ fontSize: 12, opacity: 0.8, display: "flex", gap: 8, alignItems: "center" }}>
-                        <span>Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"}</span>
-                        <span>Tile: {hoveredTileId ?? "—"}</span>
-                        <span>
-                            Spot: {hoverTile ? (canPlaceHover ? "frei" : "blockiert") : "—"}
-                        </span>
-                        {hoveredBuilding && <span>Building: {hoveredBuilding.type}</span>}
-                    </div>
+                    <Panel title="Status">
+                        <MiniBadge label={`Phase: ${st.time.phase}`} />
+                        <MiniBadge label={`Speed: ${st.speed}`} />
+                        <MiniBadge label={`Buildings: ${buildings.length}`} />
+                        <MiniBadge label={`Hunger: ${hunger}`} />
+                    </Panel>
+
+                    <Panel title="Build Mode">
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {BUILDABLES.map(type => (
+                                <Btn key={type} onClick={() => setBuildMode(mode => (mode === type ? null : type))} active={buildMode === type}>
+                                    {type}
+                                </Btn>
+                            ))}
+                            <Btn onClick={() => setBuildMode(null)} disabled={!buildMode}>
+                                Clear
+                            </Btn>
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
+                            Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"} · Tile: {hoveredTileId ?? "—"} · Spot: {hoverTile ? (canPlaceHover ? "frei" : "blockiert") : "—"}
+                        </div>
+                        {hoveredBuilding && (
+                            <div style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>Here: {hoveredBuilding.type}</div>
+                        )}
+                        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>Linke Maustaste: Platzieren · Rechtsklick/Escape: abbrechen · Shift+Drag oder Rechtsklick: Pan · Scroll: Zoom</div>
+                    </Panel>
                 </div>
 
                 <div
                     style={{
                         position: "relative",
-                        borderRadius: 16,
-                        border: "1px solid rgba(0,0,0,0.08)",
-                        background: "linear-gradient(180deg, #f4f7fb, #e9eef5)",
-                        boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
-                        overflow: "hidden"
+                        borderRadius: 18,
+                        border: "1px solid rgba(0,0,0,0.06)",
+                        boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
+                        background: "linear-gradient(180deg, #f7fafc, #e8eef5)",
+                        overflow: "hidden",
+                        minHeight: 640
                     }}
                 >
-                    <div style={{ overflow: "auto", padding: 12 }}>
-                        <WorldCanvas st={st} buildMode={buildMode} onTileClick={handleTileClick} onHover={setHoverTile} />
+                    <div style={{ position: "absolute", inset: 0, padding: 12 }}>
+                        <WorldCanvas
+                            st={st}
+                            buildMode={buildMode}
+                            onTileClick={handleTileClick}
+                            onHover={setHoverTile}
+                            onCancelBuild={() => setBuildMode(null)}
+                        />
                     </div>
 
                     <div
                         style={{
                             position: "absolute",
-                            right: 12,
-                            top: 12,
-                            padding: "10px 12px",
+                            left: 14,
+                            top: 14,
+                            padding: "8px 10px",
                             borderRadius: 12,
                             background: "rgba(0,0,0,0.55)",
                             color: "white",
                             fontSize: 12,
                             display: "grid",
                             gap: 4,
-                            minWidth: 200
+                            minWidth: 180
                         }}
                     >
-                        <div style={{ fontWeight: 700 }}>World Canvas</div>
-                        <div>Tiles: {st.world.width} x {st.world.height}</div>
+                        <div style={{ fontWeight: 700 }}>Welt</div>
+                        <div>Grid: {st.world.width} x {st.world.height}</div>
                         <div>Build: {buildMode ?? "—"}</div>
                         <div>Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"}</div>
                         <div>Tile: {hoveredTileId ?? "—"}</div>
                         <div>Placeable: {buildMode && hoverTile ? (canPlaceHover ? "yes" : "no") : "—"}</div>
-                        {hoveredBuilding && <div>Here: {hoveredBuilding.type}</div>}
                     </div>
                 </div>
-            </div>
 
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 14 }}>
-                <Card title="Ressourcen">
-                    <Row k="Holz" v={st.inventory.wood} />
-                    <Row k="Beeren" v={st.inventory.berries} />
-                    <Row k="Stein" v={st.inventory.stone} />
-                    <Row k="Fisch" v={st.inventory.fish} />
-                </Card>
+                <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+                    <Panel title={`Villager (${aliveVillagers.length})`}>
+                        <div style={{ display: "grid", gap: 10 }}>
+                            {aliveVillagers.map(v => (
+                                <div
+                                    key={v.id}
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns: "1fr auto",
+                                        gap: 10,
+                                        alignItems: "center",
+                                        padding: "8px 10px",
+                                        borderRadius: 12,
+                                        border: "1px solid rgba(0,0,0,0.08)",
+                                        background: "rgba(255,255,255,0.65)"
+                                    }}
+                                >
+                                    <div style={{ display: "grid", gap: 4 }}>
+                                        <div style={{ fontWeight: 600, display: "flex", gap: 8, alignItems: "center" }}>
+                                            <span>{v.name}</span>
+                                            <span style={{ fontSize: 12, opacity: 0.65 }}>({v.id})</span>
+                                        </div>
 
-                <Card title={`Villager (${aliveVillagers.length})`}>
-                    <div style={{ display: "grid", gap: 10 }}>
-                        {aliveVillagers.map(v => (
-                            <div
-                                key={v.id}
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: "1fr auto",
-                                    gap: 10,
-                                    alignItems: "center",
-                                    padding: "8px 10px",
-                                    borderRadius: 12,
-                                    border: "1px solid rgba(0,0,0,0.10)"
-                                }}
-                            >
-                                <div style={{ display: "grid", gap: 4 }}>
-                                    <div style={{ fontWeight: 600, display: "flex", gap: 8, alignItems: "center" }}>
-                                        <span>{v.name}</span>
-                                        <span style={{ fontSize: 12, opacity: 0.65 }}>({v.id})</span>
+                                        <div style={{ display: "flex", gap: 10, fontSize: 12, opacity: 0.85, flexWrap: "wrap" }}>
+                                            <span>Hunger: {fmt(v.needs.hunger)}</span>
+                                            <span>Energy: {fmt(v.needs.energy)}</span>
+                                            <span>Morale: {fmt(v.stats.morale)}</span>
+                                        </div>
+
+                                        <div style={{ fontSize: 12, opacity: 0.8 }}>
+                                            Assigned: {v.assignedBuildingId ? v.assignedBuildingId : "—"}
+                                        </div>
                                     </div>
 
-                                    <div style={{ display: "flex", gap: 10, fontSize: 12, opacity: 0.85, flexWrap: "wrap" }}>
-                                        <span>Hunger: {fmt(v.needs.hunger)}</span>
-                                        <span>Energy: {fmt(v.needs.energy)}</span>
-                                        <span>Morale: {fmt(v.stats.morale)}</span>
-                                    </div>
+                                    <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+                                        <select
+                                            value={v.job}
+                                            onChange={e => {
+                                                const job = e.target.value as VillagerJobId;
+                                                setSt(prev => engine.commands.assignVillagerJob(prev, v.id, job));
+                                            }}
+                                            style={selStyle()}
+                                        >
+                                            {JOBS.map(j => (
+                                                <option key={j} value={j}>
+                                                    {j}
+                                                </option>
+                                            ))}
+                                        </select>
 
-                                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                        Assigned: {v.assignedBuildingId ? v.assignedBuildingId : "—"}
+                                        <select
+                                            value={v.assignedBuildingId ?? ""}
+                                            onChange={e => {
+                                                const id = e.target.value || null;
+                                                setSt(prev => engine.commands.assignVillagerToBuilding(prev, v.id, id));
+                                            }}
+                                            style={selStyle()}
+                                        >
+                                            <option value="">(kein Gebäude)</option>
+                                            {buildings.map(b => (
+                                                <option key={b.id} value={b.id}>
+                                                    {b.type} @ {b.pos.x},{b.pos.y}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+                    </Panel>
 
-                                <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
-                                    <select
-                                        value={v.job}
-                                        onChange={e => {
-                                            const job = e.target.value as VillagerJobId;
-                                            setSt(prev => engine.commands.assignVillagerJob(prev, v.id, job));
-                                        }}
-                                        style={selStyle()}
-                                    >
-                                        {JOBS.map(j => (
-                                            <option key={j} value={j}>
-                                                {j}
-                                            </option>
-                                        ))}
-                                    </select>
+                    <Panel title="Buildings">
+                        <div style={{ display: "grid", gap: 10 }}>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, opacity: 0.8 }}>Manual place:</span>
 
-                                    <select
-                                        value={v.assignedBuildingId ?? ""}
-                                        onChange={e => {
-                                            const id = e.target.value || null;
-                                            setSt(prev => engine.commands.assignVillagerToBuilding(prev, v.id, id));
-                                        }}
-                                        style={selStyle()}
-                                    >
-                                        <option value="">(kein Gebäude)</option>
-                                        {buildings.map(b => (
-                                            <option key={b.id} value={b.id}>
-                                                {b.type} @ {b.pos.x},{b.pos.y}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <input
+                                    value={px}
+                                    onChange={e => setPx(toInt(e.target.value, px))}
+                                    inputMode="numeric"
+                                    style={inpStyle()}
+                                />
+                                <input
+                                    value={py}
+                                    onChange={e => setPy(toInt(e.target.value, py))}
+                                    inputMode="numeric"
+                                    style={inpStyle()}
+                                />
+
+                                <Btn
+                                    onClick={() =>
+                                        setSt(prev => engine.commands.placeBuilding(prev, "gather_hut", { x: px, y: py }))
+                                    }
+                                >
+                                    Gather Hut
+                                </Btn>
                             </div>
-                        ))}
-                    </div>
-                </Card>
 
-                <Card title="Buildings">
-                    <div style={{ display: "grid", gap: 10 }}>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            <span style={{ fontSize: 12, opacity: 0.8 }}>Place:</span>
-
-                            <input
-                                value={px}
-                                onChange={e => setPx(toInt(e.target.value, px))}
-                                inputMode="numeric"
-                                style={inpStyle()}
-                            />
-                            <input
-                                value={py}
-                                onChange={e => setPy(toInt(e.target.value, py))}
-                                inputMode="numeric"
-                                style={inpStyle()}
-                            />
-
-                            <Btn
-                                onClick={() =>
-                                    setSt(prev => engine.commands.placeBuilding(prev, "gather_hut", { x: px, y: py }))
-                                }
-                            >
-                                Gather Hut
-                            </Btn>
-
-                            <Btn
-                                onClick={() => {
-                                    const x = 28 + Math.floor(Math.random() * 8);
-                                    const y = 28 + Math.floor(Math.random() * 8);
-                                    setPx(x);
-                                    setPy(y);
-                                    setSt(prev => engine.commands.placeBuilding(prev, "gather_hut", { x, y }));
-                                }}
-                            >
-                                Random near center
-                            </Btn>
+                            {buildings.length ? (
+                                buildings.map(b => <BuildingRow key={b.id} b={b} st={st} setSt={setSt} />)
+                            ) : (
+                                <div style={{ fontSize: 12, opacity: 0.7 }}>Noch keine Buildings.</div>
+                            )}
                         </div>
+                    </Panel>
 
-                        {buildings.length ? (
-                            buildings.map(b => <BuildingRow key={b.id} b={b} st={st} setSt={setSt} />)
+                    <Panel title="Letztes Event">
+                        {st.events.length ? (
+                            <div style={{ display: "grid", gap: 8 }}>
+                                <div style={{ fontWeight: 600 }}>{st.events[st.events.length - 1].id}</div>
+                                <pre
+                                    style={{
+                                        margin: 0,
+                                        padding: 10,
+                                        borderRadius: 12,
+                                        border: "1px solid rgba(0,0,0,0.10)",
+                                        overflow: "auto",
+                                        fontSize: 12,
+                                        background: "rgba(0,0,0,0.03)"
+                                    }}
+                                >
+                                    {JSON.stringify(st.events[st.events.length - 1].payload, null, 2)}
+                                </pre>
+                            </div>
                         ) : (
-                            <div style={{ fontSize: 12, opacity: 0.7 }}>Noch keine Buildings.</div>
+                            <div style={{ opacity: 0.7 }}>—</div>
                         )}
-                    </div>
-                </Card>
-
-                <Card title="Letztes Event">
-                    {st.events.length ? (
-                        <div style={{ display: "grid", gap: 8 }}>
-                            <div style={{ fontWeight: 600 }}>{st.events[st.events.length - 1].id}</div>
-                            <pre
-                                style={{
-                                    margin: 0,
-                                    padding: 10,
-                                    borderRadius: 12,
-                                    border: "1px solid rgba(0,0,0,0.10)",
-                                    overflow: "auto",
-                                    fontSize: 12,
-                                    background: "rgba(0,0,0,0.03)"
-                                }}
-                            >
-                                {JSON.stringify(st.events[st.events.length - 1].payload, null, 2)}
-                            </pre>
-                        </div>
-                    ) : (
-                        <div style={{ opacity: 0.7 }}>—</div>
-                    )}
-                </Card>
+                    </Panel>
+                </div>
             </div>
         </div>
     );
@@ -379,6 +397,52 @@ function BuildingRow({
     );
 }
 
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div
+            style={{
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid rgba(0,0,0,0.08)",
+                background: "rgba(255,255,255,0.7)",
+                boxShadow: "0 8px 18px rgba(15,23,42,0.05)",
+                backdropFilter: "blur(6px)",
+                display: "grid",
+                gap: 8
+            }}
+        >
+            <div style={{ fontWeight: 700, letterSpacing: -0.1 }}>{title}</div>
+            {children}
+        </div>
+    );
+}
+
+function ResRow({ label, value }: { label: string; value: number }) {
+    return (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+            <span style={{ opacity: 0.9 }}>{label}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{value}</span>
+        </div>
+    );
+}
+
+function MiniBadge({ label }: { label: string }) {
+    return (
+        <div
+            style={{
+                padding: "6px 8px",
+                borderRadius: 10,
+                border: "1px solid rgba(0,0,0,0.08)",
+                background: "rgba(15,23,42,0.04)",
+                fontSize: 12,
+                width: "fit-content"
+            }}
+        >
+            {label}
+        </div>
+    );
+}
+
 function Btn({
     children,
     onClick,
@@ -407,48 +471,6 @@ function Btn({
         >
             {children}
         </button>
-    );
-}
-
-function Badge({ label }: { label: string }) {
-    return (
-        <div
-            style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(0,0,0,0.12)",
-                background: "rgba(0,0,0,0.03)",
-                fontSize: 12
-            }}
-        >
-            {label}
-        </div>
-    );
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <div
-            style={{
-                minWidth: 340,
-                padding: 12,
-                borderRadius: 14,
-                border: "1px solid rgba(0,0,0,0.12)",
-                background: "rgba(0,0,0,0.02)"
-            }}
-        >
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>{title}</div>
-            {children}
-        </div>
-    );
-}
-
-function Row({ k, v }: { k: string; v: number }) {
-    return (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-            <span style={{ opacity: 0.9 }}>{k}</span>
-            <span style={{ fontVariantNumeric: "tabular-nums", opacity: 0.85 }}>{v}</span>
-        </div>
     );
 }
 
