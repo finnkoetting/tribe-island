@@ -5,7 +5,7 @@ import { createInitialVillagers } from "./createInitialVillagers";
 const MS_PER_DAY = 30 * 60 * 1000;
 
 export function createGame(seed = Date.now()): GameState {
-    const world = createInitialWorld();
+    const world = createInitialWorld(seed);
     const villagers = createInitialVillagers();
 
     return {

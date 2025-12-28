@@ -29,7 +29,16 @@ export type GameTime = {
    WELT
 ======================= */
 
-export type WorldTileId = "grass" | "dirt" | "sand" | "water" | "rock";
+export type WorldTileId =
+    | "water"
+    | "sand"
+    | "rock"
+    | "dirt"
+    | "grass"
+    | "forest"
+    | "meadow"
+    | "desert"
+    | "swamp";
 
 export type WorldTile = {
     id: WorldTileId;

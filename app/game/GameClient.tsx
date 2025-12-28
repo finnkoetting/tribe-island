@@ -1,27 +1,43 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { FC } from "react";
 import * as engine from "../../src/game/engine";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
-import type { Building, BuildingTypeId, GameState, Vec2, VillagerJobId } from "../../src/game/types/GameState";
+import type { BuildingTypeId, GameState, Vec2 } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
 
-const JOBS: VillagerJobId[] = ["idle", "gatherer", "builder", "researcher", "fisher", "guard"];
 const BUILDABLES: BuildingTypeId[] = ["gather_hut", "campfire", "storage", "watchpost", "townhall"];
+const BUILD_META: Record<BuildingTypeId, { title: string; cost: string }> = {
+    townhall: { title: "Rathaus", cost: "Start" },
+    gather_hut: { title: "Sammelhuette", cost: "20 Holz" },
+    campfire: { title: "Lagerfeuer", cost: "10 Holz" },
+    storage: { title: "Lagerhaus", cost: "25 Holz, 10 Stein" },
+    watchpost: { title: "Wachtposten", cost: "18 Holz, 6 Stein" }
+};
+
+const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: FC; color: string }> = [
+    { id: "wood", label: "Holz", Icon: WoodIcon, color: "#d4a373" },
+    { id: "berries", label: "Beeren", Icon: BerriesIcon, color: "#b85acb" },
+    { id: "fish", label: "Fisch", Icon: FishIcon, color: "#4cc3ff" },
+    { id: "stone", label: "Stein", Icon: StoneIcon, color: "#9ca3af" },
+    { id: "fibers", label: "Fasern", Icon: FibersIcon, color: "#6ee7b7" },
+    { id: "medicine", label: "Medizin", Icon: MedicineIcon, color: "#f472b6" },
+    { id: "knowledge", label: "Wissen", Icon: KnowledgeIcon, color: "#fbbf24" },
+    { id: "gold", label: "Gold", Icon: GoldIcon, color: "#f59e0b" }
+];
 
 export default function GameClient() {
     const [st, setSt] = useState<GameState>(() => engine.create.createGame());
-    const lastRef = useRef<number>(0);
+    const lastRef = useRef<number | null>(null);
     const rafRef = useRef<number | null>(null);
 
-    const [px, setPx] = useState(32);
-    const [py, setPy] = useState(32);
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>("gather_hut");
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
 
     useEffect(() => {
         const loop = (t: number) => {
-            if (!lastRef.current) lastRef.current = t;
+            if (lastRef.current === null) lastRef.current = t;
             const dt = Math.min(250, Math.max(0, t - lastRef.current));
             lastRef.current = t;
 
@@ -36,19 +52,15 @@ export default function GameClient() {
     }, []);
 
     const aliveVillagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
-    const buildings = useMemo(() => Object.values(st.buildings), [st.buildings]);
-    const hunger = st.alerts?.hunger?.severity ?? 0;
     const hoveredBuilding = useMemo(() => {
         if (!hoverTile) return null;
-        return buildings.find(b => b.pos.x === hoverTile.x && b.pos.y === hoverTile.y) || null;
-    }, [hoverTile, buildings]);
-
+        return Object.values(st.buildings).find(b => b.pos.x === hoverTile.x && b.pos.y === hoverTile.y) || null;
+    }, [hoverTile, st.buildings]);
     const hoveredTileId = useMemo(() => {
-        if (!hoverTile) return null;
+        if (!hoverTile) return "";
         const i = hoverTile.y * st.world.width + hoverTile.x;
-        return st.world.tiles[i]?.id ?? null;
+        return st.world.tiles[i]?.id ?? "";
     }, [hoverTile, st.world]);
-
     const canPlaceHover = useMemo(() => (hoverTile ? canPlaceAt(st, hoverTile) : false), [hoverTile, st]);
 
     const handleTileClick = (pos: Vec2) => {
@@ -64,452 +76,353 @@ export default function GameClient() {
     return (
         <div
             style={{
+                position: "relative",
                 minHeight: "100vh",
-                display: "grid",
-                gridTemplateRows: "auto 1fr",
-                background: "radial-gradient(circle at 20% 20%, #eef5ff, #dde7f5 45%, #d4dfef 70%)",
-                color: "#0f172a",
-                fontFamily: "'Inter', system-ui, sans-serif"
+                overflow: "hidden",
+                background: "radial-gradient(circle at 20% 20%, #1f2a38 0%, #111827 45%, #0b1220 100%)",
+                color: "#e5e7eb",
+                fontFamily: "Nunito, system-ui, sans-serif"
             }}
         >
-            <header
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "14px 18px",
-                    gap: 12,
-                    borderBottom: "1px solid rgba(0,0,0,0.08)",
-                    backdropFilter: "blur(6px)",
-                    background: "rgba(255,255,255,0.7)"
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg,#4f46e5,#22c55e)" }} />
-                    <div>
-                        <div style={{ fontWeight: 800, letterSpacing: -0.2 }}>Tribe Island</div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>Tag {st.time.day} · {st.time.phase} · {formatClock(st)}</div>
-                    </div>
-                </div>
+            <div style={{ position: "absolute", inset: 0 }}>
+                <WorldCanvas
+                    st={st}
+                    buildMode={buildMode}
+                    onTileClick={handleTileClick}
+                    onHover={setHoverTile}
+                    onCancelBuild={() => setBuildMode(null)}
+                />
+            </div>
 
-                <div style={{ display: "flex", gap: 8 }}>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 0 }))} active={st.speed === 0}>
-                        Pause
-                    </Btn>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 1 }))} active={st.speed === 1}>
-                        Normal
-                    </Btn>
-                    <Btn onClick={() => setSt(s => ({ ...s, speed: 2 }))} active={st.speed === 2}>
-                        Fast
-                    </Btn>
-                    <Btn
-                        onClick={() => {
-                            lastRef.current = 0;
-                            setSt(engine.create.createGame());
-                            setPx(32);
-                            setPy(32);
-                        }}
-                    >
-                        New Run
-                    </Btn>
-                </div>
-            </header>
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                <TopLeftHud st={st} />
+                <TopRightResources st={st} />
+                <HoverCard hoveredBuilding={hoveredBuilding} hoveredTileId={hoveredTileId} hoverTile={hoverTile} canPlace={canPlaceHover} buildMode={buildMode} />
+                <BottomHud st={st} setSt={setSt} buildMode={buildMode} setBuildMode={setBuildMode} villagerCount={aliveVillagers.length} />
+            </div>
+        </div>
+    );
+}
 
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "260px 1fr 340px",
-                    gap: 14,
-                    padding: "14px 18px",
-                    alignItems: "stretch"
-                }}
-            >
-                <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
-                    <Panel title="Ressourcen">
-                        <ResRow label="Holz" value={st.inventory.wood} />
-                        <ResRow label="Beeren" value={st.inventory.berries} />
-                        <ResRow label="Stein" value={st.inventory.stone} />
-                        <ResRow label="Fisch" value={st.inventory.fish} />
-                        <ResRow label="Fasern" value={st.inventory.fibers} />
-                    </Panel>
+function TopLeftHud({ st }: { st: GameState }) {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                top: 16,
+                left: 18,
+                padding: "10px 14px",
+                background: "rgba(0,0,0,0.55)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                boxShadow: "0 12px 28px rgba(0,0,0,0.4)",
+                pointerEvents: "auto"
+            }}
+        >
+            <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: -0.2 }}>Tribe Island</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                <Tag label="Phase" value={st.time.phase} />
+                <Tag label="Zeit" value={formatClock(st)} />
+                <Tag label="Tag" value={String(st.time.day)} />
+            </div>
+        </div>
+    );
+}
 
-                    <Panel title="Status">
-                        <MiniBadge label={`Phase: ${st.time.phase}`} />
-                        <MiniBadge label={`Speed: ${st.speed}`} />
-                        <MiniBadge label={`Buildings: ${buildings.length}`} />
-                        <MiniBadge label={`Hunger: ${hunger}`} />
-                    </Panel>
-
-                    <Panel title="Build Mode">
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                            {BUILDABLES.map(type => (
-                                <Btn key={type} onClick={() => setBuildMode(mode => (mode === type ? null : type))} active={buildMode === type}>
-                                    {type}
-                                </Btn>
-                            ))}
-                            <Btn onClick={() => setBuildMode(null)} disabled={!buildMode}>
-                                Clear
-                            </Btn>
-                        </div>
-                        <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
-                            Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"} · Tile: {hoveredTileId ?? "—"} · Spot: {hoverTile ? (canPlaceHover ? "frei" : "blockiert") : "—"}
-                        </div>
-                        {hoveredBuilding && (
-                            <div style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>Here: {hoveredBuilding.type}</div>
-                        )}
-                        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6 }}>Linke Maustaste: Platzieren · Rechtsklick/Escape: abbrechen · Shift+Drag oder Rechtsklick: Pan · Scroll: Zoom</div>
-                    </Panel>
-                </div>
-
+function TopRightResources({ st }: { st: GameState }) {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                top: 18,
+                right: 18,
+                display: "grid",
+                gap: 6,
+                pointerEvents: "auto"
+            }}
+        >
+            {RES_ORDER.map(res => (
                 <div
+                    key={res.id}
                     style={{
-                        position: "relative",
-                        borderRadius: 18,
-                        border: "1px solid rgba(0,0,0,0.06)",
-                        boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
-                        background: "linear-gradient(180deg, #f7fafc, #e8eef5)",
-                        overflow: "hidden",
-                        minHeight: 640
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        minWidth: 120,
+                        padding: "6px 10px",
+                        background: "rgba(0,0,0,0.55)",
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        boxShadow: "0 8px 18px rgba(0,0,0,0.35)"
                     }}
                 >
-                    <div style={{ position: "absolute", inset: 0, padding: 12 }}>
-                        <WorldCanvas
-                            st={st}
-                            buildMode={buildMode}
-                            onTileClick={handleTileClick}
-                            onHover={setHoverTile}
-                            onCancelBuild={() => setBuildMode(null)}
-                        />
-                    </div>
-
-                    <div
+                    <span
                         style={{
-                            position: "absolute",
-                            left: 14,
-                            top: 14,
-                            padding: "8px 10px",
-                            borderRadius: 12,
-                            background: "rgba(0,0,0,0.55)",
-                            color: "white",
-                            fontSize: 12,
-                            display: "grid",
-                            gap: 4,
-                            minWidth: 180
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: `linear-gradient(145deg, ${res.color}33, ${res.color}22)`,
+                            border: `1px solid ${res.color}55`,
+                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12)",
+                            fontSize: 15
                         }}
                     >
-                        <div style={{ fontWeight: 700 }}>Welt</div>
-                        <div>Grid: {st.world.width} x {st.world.height}</div>
-                        <div>Build: {buildMode ?? "—"}</div>
-                        <div>Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"}</div>
-                        <div>Tile: {hoveredTileId ?? "—"}</div>
-                        <div>Placeable: {buildMode && hoverTile ? (canPlaceHover ? "yes" : "no") : "—"}</div>
-                    </div>
+                        <res.Icon />
+                    </span>
+                    <span style={{ flex: 1, opacity: 0.85 }}>{res.label}</span>
+                    <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{st.inventory[res.id] ?? 0}</span>
                 </div>
-
-                <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
-                    <Panel title={`Villager (${aliveVillagers.length})`}>
-                        <div style={{ display: "grid", gap: 10 }}>
-                            {aliveVillagers.map(v => (
-                                <div
-                                    key={v.id}
-                                    style={{
-                                        display: "grid",
-                                        gridTemplateColumns: "1fr auto",
-                                        gap: 10,
-                                        alignItems: "center",
-                                        padding: "8px 10px",
-                                        borderRadius: 12,
-                                        border: "1px solid rgba(0,0,0,0.08)",
-                                        background: "rgba(255,255,255,0.65)"
-                                    }}
-                                >
-                                    <div style={{ display: "grid", gap: 4 }}>
-                                        <div style={{ fontWeight: 600, display: "flex", gap: 8, alignItems: "center" }}>
-                                            <span>{v.name}</span>
-                                            <span style={{ fontSize: 12, opacity: 0.65 }}>({v.id})</span>
-                                        </div>
-
-                                        <div style={{ display: "flex", gap: 10, fontSize: 12, opacity: 0.85, flexWrap: "wrap" }}>
-                                            <span>Hunger: {fmt(v.needs.hunger)}</span>
-                                            <span>Energy: {fmt(v.needs.energy)}</span>
-                                            <span>Morale: {fmt(v.stats.morale)}</span>
-                                        </div>
-
-                                        <div style={{ fontSize: 12, opacity: 0.8 }}>
-                                            Assigned: {v.assignedBuildingId ? v.assignedBuildingId : "—"}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
-                                        <select
-                                            value={v.job}
-                                            onChange={e => {
-                                                const job = e.target.value as VillagerJobId;
-                                                setSt(prev => engine.commands.assignVillagerJob(prev, v.id, job));
-                                            }}
-                                            style={selStyle()}
-                                        >
-                                            {JOBS.map(j => (
-                                                <option key={j} value={j}>
-                                                    {j}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        <select
-                                            value={v.assignedBuildingId ?? ""}
-                                            onChange={e => {
-                                                const id = e.target.value || null;
-                                                setSt(prev => engine.commands.assignVillagerToBuilding(prev, v.id, id));
-                                            }}
-                                            style={selStyle()}
-                                        >
-                                            <option value="">(kein Gebäude)</option>
-                                            {buildings.map(b => (
-                                                <option key={b.id} value={b.id}>
-                                                    {b.type} @ {b.pos.x},{b.pos.y}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </Panel>
-
-                    <Panel title="Buildings">
-                        <div style={{ display: "grid", gap: 10 }}>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                                <span style={{ fontSize: 12, opacity: 0.8 }}>Manual place:</span>
-
-                                <input
-                                    value={px}
-                                    onChange={e => setPx(toInt(e.target.value, px))}
-                                    inputMode="numeric"
-                                    style={inpStyle()}
-                                />
-                                <input
-                                    value={py}
-                                    onChange={e => setPy(toInt(e.target.value, py))}
-                                    inputMode="numeric"
-                                    style={inpStyle()}
-                                />
-
-                                <Btn
-                                    onClick={() =>
-                                        setSt(prev => engine.commands.placeBuilding(prev, "gather_hut", { x: px, y: py }))
-                                    }
-                                >
-                                    Gather Hut
-                                </Btn>
-                            </div>
-
-                            {buildings.length ? (
-                                buildings.map(b => <BuildingRow key={b.id} b={b} st={st} setSt={setSt} />)
-                            ) : (
-                                <div style={{ fontSize: 12, opacity: 0.7 }}>Noch keine Buildings.</div>
-                            )}
-                        </div>
-                    </Panel>
-
-                    <Panel title="Letztes Event">
-                        {st.events.length ? (
-                            <div style={{ display: "grid", gap: 8 }}>
-                                <div style={{ fontWeight: 600 }}>{st.events[st.events.length - 1].id}</div>
-                                <pre
-                                    style={{
-                                        margin: 0,
-                                        padding: 10,
-                                        borderRadius: 12,
-                                        border: "1px solid rgba(0,0,0,0.10)",
-                                        overflow: "auto",
-                                        fontSize: 12,
-                                        background: "rgba(0,0,0,0.03)"
-                                    }}
-                                >
-                                    {JSON.stringify(st.events[st.events.length - 1].payload, null, 2)}
-                                </pre>
-                            </div>
-                        ) : (
-                            <div style={{ opacity: 0.7 }}>—</div>
-                        )}
-                    </Panel>
-                </div>
-            </div>
+            ))}
         </div>
     );
 }
 
-function BuildingRow({
-    b,
-    st,
-    setSt
-}: {
-    b: Building;
-    st: GameState;
-    setSt: React.Dispatch<React.SetStateAction<GameState>>;
-}) {
-    const workers = b.assignedVillagerIds.length;
-    const t = b.task;
-    const dur = t.duration || 0;
-    const pct = dur > 0 ? Math.round((t.progress / dur) * 100) : 0;
-
+function HoverCard({ hoveredBuilding, hoveredTileId, hoverTile, canPlace, buildMode }: { hoveredBuilding: GameState["buildings"][string] | null; hoveredTileId: string; hoverTile: Vec2 | null; canPlace: boolean; buildMode: BuildingTypeId | null }) {
+    if (!hoverTile) return null;
     return (
         <div
             style={{
-                padding: "10px 10px",
-                borderRadius: 12,
-                border: "1px solid rgba(0,0,0,0.10)",
-                display: "grid",
-                gap: 8
-            }}
-        >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                <div style={{ display: "grid", gap: 2 }}>
-                    <div style={{ fontWeight: 700 }}>
-                        {b.type} <span style={{ fontWeight: 400, opacity: 0.7 }}>({b.id})</span>
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Pos: {b.pos.x},{b.pos.y} · Workers: {workers}
-                    </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8 }}>
-                    <Btn
-                        onClick={() => setSt(prev => engine.commands.collectFromBuilding(prev, b.id))}
-                        disabled={!t.collectable}
-                    >
-                        Collect
-                    </Btn>
-                </div>
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Task: {t.kind} · {t.collectable ? "collectable" : "running"} · {t.progress}/{t.duration} ({pct}%)
-                </div>
-
-                <div style={{ height: 10, borderRadius: 999, border: "1px solid rgba(0,0,0,0.12)", overflow: "hidden" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: "rgba(0,0,0,0.20)" }} />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <div
-            style={{
-                padding: 12,
-                borderRadius: 14,
-                border: "1px solid rgba(0,0,0,0.08)",
-                background: "rgba(255,255,255,0.7)",
-                boxShadow: "0 8px 18px rgba(15,23,42,0.05)",
-                backdropFilter: "blur(6px)",
-                display: "grid",
-                gap: 8
-            }}
-        >
-            <div style={{ fontWeight: 700, letterSpacing: -0.1 }}>{title}</div>
-            {children}
-        </div>
-    );
-}
-
-function ResRow({ label, value }: { label: string; value: number }) {
-    return (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
-            <span style={{ opacity: 0.9 }}>{label}</span>
-            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{value}</span>
-        </div>
-    );
-}
-
-function MiniBadge({ label }: { label: string }) {
-    return (
-        <div
-            style={{
-                padding: "6px 8px",
+                position: "absolute",
+                top: 90,
+                left: "50%",
+                transform: "translateX(-50%)",
+                padding: "8px 12px",
+                background: "rgba(0,0,0,0.55)",
+                border: "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 10,
-                border: "1px solid rgba(0,0,0,0.08)",
-                background: "rgba(15,23,42,0.04)",
-                fontSize: 12,
-                width: "fit-content"
+                boxShadow: "0 12px 24px rgba(0,0,0,0.35)",
+                display: "flex",
+                gap: 10,
+                pointerEvents: "none",
+                fontSize: 13
             }}
         >
-            {label}
+            <span>Tile {hoverTile.x},{hoverTile.y} ({hoveredTileId || "-"})</span>
+            {buildMode && <span>| Modus: {BUILD_META[buildMode]?.title ?? buildMode}</span>}
+            {buildMode && <span>| {canPlace ? "frei" : "blockiert"}</span>}
+            {hoveredBuilding && <span>| {BUILD_META[hoveredBuilding.type]?.title ?? hoveredBuilding.type}</span>}
         </div>
     );
 }
 
-function Btn({
-    children,
-    onClick,
-    disabled,
-    active
-}: {
-    children: React.ReactNode;
-    onClick: () => void;
-    disabled?: boolean;
-    active?: boolean;
-}) {
+function BottomHud({ st, setSt, buildMode, setBuildMode, villagerCount }: { st: GameState; setSt: React.Dispatch<React.SetStateAction<GameState>>; buildMode: BuildingTypeId | null; setBuildMode: (m: BuildingTypeId | null) => void; villagerCount: number }) {
+    const hunger = st.alerts?.hunger?.severity ?? 0;
+    return (
+        <div
+            style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                pointerEvents: "none",
+                gap: 12,
+                background: "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 55%)"
+            }}
+        >
+            <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
+                <SpeedButton label="||" active={st.speed === 0} onClick={() => setSt(s => ({ ...s, speed: 0 }))} />
+                <SpeedButton label=">" active={st.speed === 1} onClick={() => setSt(s => ({ ...s, speed: 1 }))} />
+                <SpeedButton label=">>" active={st.speed === 2} onClick={() => setSt(s => ({ ...s, speed: 2 }))} />
+            </div>
+
+            <div style={{ display: "grid", gap: 8, pointerEvents: "auto" }}>
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+                    {BUILDABLES.map(type => (
+                        <BuildButton key={type} active={buildMode === type} label={BUILD_META[type]?.title ?? type} onClick={() => setBuildMode(prev => (prev === type ? null : type))} />
+                    ))}
+                    <BuildButton active={!buildMode} label="Abbrechen" onClick={() => setBuildMode(null)} />
+                </div>
+                <div style={{ textAlign: "center", fontSize: 12, opacity: 0.85 }}>
+                    {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode} (${BUILD_META[buildMode]?.cost ?? ""})` : "Kein Bau aktiv"}
+                </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 6, pointerEvents: "auto", justifyItems: "end" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <Tag label="Bewohner" value={String(villagerCount)} />
+                    <Tag label="Hunger" value={String(hunger)} tone={hunger > 0 ? "warn" : "muted"} />
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <Tag label="Zeit" value={formatClock(st)} />
+                    <Tag label="Tag" value={String(st.time.day)} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SpeedButton({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
     return (
         <button
             onClick={onClick}
-            disabled={disabled}
             style={{
-                padding: "8px 10px",
-                borderRadius: 12,
-                border: active ? "1px solid #0f172a" : "1px solid rgba(0,0,0,0.14)",
-                background: disabled ? "rgba(0,0,0,0.04)" : active ? "#0f172a" : "white",
-                color: active ? "white" : "#0f172a",
-                cursor: disabled ? "not-allowed" : "pointer",
-                opacity: disabled ? 0.6 : 1,
-                transition: "background 120ms ease, color 120ms ease, border-color 120ms ease"
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                border: active ? "1px solid #22d3ee" : "1px solid rgba(255,255,255,0.14)",
+                background: active ? "rgba(34,211,238,0.18)" : "rgba(0,0,0,0.5)",
+                color: "#e5e7eb",
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: active ? "0 10px 20px rgba(34,211,238,0.25)" : "0 8px 16px rgba(0,0,0,0.35)"
             }}
         >
-            {children}
+            {label}
         </button>
     );
 }
 
-function fmt(n: number) {
-    return (Math.round(n * 100) / 100).toFixed(2);
+function BuildButton({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: active ? "1px solid #22d3ee" : "1px solid rgba(255,255,255,0.12)",
+                background: active ? "rgba(34,211,238,0.14)" : "rgba(0,0,0,0.55)",
+                color: "#e5e7eb",
+                cursor: "pointer",
+                minWidth: 110,
+                boxShadow: "0 10px 18px rgba(0,0,0,0.35)",
+                fontWeight: 700
+            }}
+        >
+            {label}
+        </button>
+    );
 }
 
-function toInt(v: string, fallback: number) {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) ? n : fallback;
+function Tag({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "warn" }) {
+    const palette = tone === "warn" ? { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)" } : { bg: "rgba(255,255,255,0.08)", border: "rgba(255,255,255,0.16)" };
+    return (
+        <span
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 10px",
+                borderRadius: 10,
+                border: `1px solid ${palette.border}`,
+                background: palette.bg,
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#e5e7eb"
+            }}
+        >
+            <span style={{ opacity: 0.75 }}>{label}</span>
+            <span>{value}</span>
+        </span>
+    );
 }
 
-function selStyle(): React.CSSProperties {
-    return {
-        padding: "8px 10px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.14)",
-        background: "white",
-        fontSize: 13,
-        cursor: "pointer"
-    };
+function WoodIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="3" y="6" width="14" height="8" rx="2" fill="#b0753b" stroke="#8c5a2e" strokeWidth="1.2" />
+            <path d="M6 8.5h5" stroke="#d9b28c" strokeWidth="1" strokeLinecap="round" />
+            <path d="M7 11h3.5" stroke="#d9b28c" strokeWidth="1" strokeLinecap="round" />
+            <circle cx="13.5" cy="10" r="0.9" fill="#d9b28c" />
+        </svg>
+    );
 }
 
-function inpStyle(): React.CSSProperties {
-    return {
-        width: 64,
-        padding: "8px 10px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.14)",
-        background: "white",
-        fontSize: 13
-    };
+function BerriesIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="9" cy="8" r="3" fill="#c084fc" stroke="#a855f7" strokeWidth="1.1" />
+            <circle cx="12" cy="11" r="3" fill="#c084fc" stroke="#a855f7" strokeWidth="1.1" />
+            <circle cx="7" cy="12" r="2.4" fill="#c084fc" stroke="#a855f7" strokeWidth="1.1" />
+            <path d="M10 7l3-3" stroke="#16a34a" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function FishIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+                d="M5 10c2.2-3 5.8-3.8 9-2.2l2-1.3v7L14 12.2C10.8 13.8 7.2 13 5 10Z"
+                fill="#67e8f9"
+                stroke="#0ea5e9"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+            />
+            <circle cx="12.5" cy="9.5" r="0.7" fill="#0f172a" />
+        </svg>
+    );
+}
+
+function StoneIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+                d="M5.5 6.5 11 4.5l3.8 2.5.7 5.2-2.7 2.5H7.2L4.5 12l1-4.6Z"
+                fill="#d1d5db"
+                stroke="#6b7280"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
+function FibersIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M7 15c0-5 1.5-7 3-10" stroke="#10b981" strokeWidth="1.3" strokeLinecap="round" />
+            <path d="M10 15c0-5 1.2-7.5 2.8-10.5" stroke="#34d399" strokeWidth="1.1" strokeLinecap="round" />
+            <path d="M12.5 15c0-4.5-.5-7 1-10" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function MedicineIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="4.5" y="4.5" width="11" height="11" rx="2.5" fill="#f9a8d4" stroke="#be185d" strokeWidth="1.1" />
+            <path d="M10 7v6M7 10h6" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function KnowledgeIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+                d="M6 6h7c1.1 0 2 .9 2 2v7l-2-.8-2 .8-2-.8-2 .8V8c0-1.1.9-2 2-2Z"
+                fill="#fcd34d"
+                stroke="#b45309"
+                strokeWidth="1.1"
+                strokeLinejoin="round"
+            />
+            <path d="M8 8h5" stroke="#92400e" strokeWidth="1" strokeLinecap="round" />
+            <path d="M8 10h3" stroke="#92400e" strokeWidth="1" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function GoldIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="6" fill="#fbbf24" stroke="#c27803" strokeWidth="1.2" />
+            <path d="M8 10.5c1.5.8 2.8.8 4 0M8 8.5c1.5-.8 2.8-.8 4 0" stroke="#92400e" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+    );
 }
 
 function formatClock(st: GameState) {
     const phaseMs = st.time.msPerDay / 4;
     const dayMs = st.time.phaseIndex * phaseMs + st.time.phaseElapsedMs;
     const t = Math.max(0, Math.min(st.time.msPerDay, dayMs));
-
     const minutesTotal = Math.floor((t / st.time.msPerDay) * 24 * 60);
     const hh = String(Math.floor(minutesTotal / 60)).padStart(2, "0");
     const mm = String(minutesTotal % 60).padStart(2, "0");

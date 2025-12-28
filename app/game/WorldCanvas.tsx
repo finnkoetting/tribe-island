@@ -5,14 +5,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import type { BuildingTypeId, GameState, Vec2, WorldTileId } from "../../src/game/types/GameState";
 
-const TILE_SIZE = 16;
+// Isometric rhombus dimensions (flat top). Width should be roughly 2x height for a classic 2.5D look.
+const TILE_W = 64;
+const TILE_H = 32;
+const HALF_W = TILE_W / 2;
+const HALF_H = TILE_H / 2;
+const DEG2RAD = Math.PI / 180;
+const PAD = 0; // no artificial padding
 
 const TILE_COLORS: Record<WorldTileId, string> = {
-    grass: "#7fb46a",
-    dirt: "#b78a61",
-    sand: "#d9c07b",
     water: "#65a8d6",
-    rock: "#8e9198"
+    sand: "#d9c07b",
+    rock: "#8e9198",
+    dirt: "#b78a61",
+    grass: "#7fb46a",
+    forest: "#4f7a48"
 };
 
 const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
@@ -31,6 +38,14 @@ type Camera = {
     z: number;
 };
 
+type DragState = {
+    active: boolean;
+    startX: number;
+    startY: number;
+    camX: number;
+    camY: number;
+};
+
 export type WorldCanvasProps = {
     st: GameState;
     buildMode: BuildingTypeId | null;
@@ -45,25 +60,32 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [cam, setCam] = useState<Camera>({ x: 0, y: 0, z: 1 });
-
-    const [drag, setDrag] = useState<{
-        active: boolean;
-        startX: number;
-        startY: number;
-        camX: number;
-        camY: number;
-    }>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
+    const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
+    const angleDeg = 0;
 
     const worldPx = useMemo(() => {
-        const w = st.world.width * TILE_SIZE;
-        const h = st.world.height * TILE_SIZE;
-        return { w, h };
+        const angle = angleDeg * DEG2RAD;
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+
+        const w = (st.world.width + st.world.height) * HALF_W;
+        const h = (st.world.width + st.world.height) * HALF_H;
+        const originX = st.world.height * HALF_W;
+        const originY = 0;
+
+        return { w, h, originX, originY, cosA, sinA };
     }, [st.world.width, st.world.height]);
 
     const canPlaceHover = !!(buildMode && hoverTile && canPlaceAt(st, hoverTile));
 
+    const minZoomForViewport = (vw: number, vh: number) => {
+        const fit = Math.max(vw / worldPx.w, vh / worldPx.h);
+        return Math.max(0.5, fit); // allow further zoom out but keep minimum reasonable
+    };
+
     const clampCam = (next: Camera, vw: number, vh: number) => {
-        const z = Math.max(0.6, Math.min(2.5, next.z));
+        const minZ = minZoomForViewport(vw, vh);
+        const z = Math.max(minZ, Math.min(2.5, next.z));
         const maxX = Math.max(0, worldPx.w - vw / z);
         const maxY = Math.max(0, worldPx.h - vh / z);
         const x = Math.max(0, Math.min(maxX, next.x));
@@ -105,6 +127,26 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     }, [worldPx.w, worldPx.h]);
 
     useEffect(() => {
+        resize();
+    }, [st.world.width, st.world.height]);
+
+    useEffect(() => {
+        const wrap = wrapRef.current;
+        if (!wrap) return;
+        const r = wrap.getBoundingClientRect();
+        const vw = Math.max(1, Math.floor(r.width));
+        const vh = Math.max(1, Math.floor(r.height));
+        setCam((prev) => {
+            const centered = {
+                x: (worldPx.w - vw / prev.z) / 2,
+                y: (worldPx.h - vh / prev.z) / 2,
+                z: prev.z
+            };
+            return clampCam(centered, vw, vh);
+        });
+    }, [worldPx.w, worldPx.h]);
+
+    useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape" && buildMode) onCancelBuild?.();
         };
@@ -133,14 +175,24 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         ctx.translate(-cam.x * cam.z, -cam.y * cam.z);
         ctx.scale(cam.z, cam.z);
 
-        drawTiles(ctx, st);
-        drawGrid(ctx, st);
-        drawBuildings(ctx, st);
+        drawTiles(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        drawGrid(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        drawBuildings(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
-        drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover);
+        drawOverlays(
+            ctx,
+            st,
+            hoverTile,
+            buildMode,
+            canPlaceHover,
+            worldPx.originX,
+            worldPx.originY,
+            worldPx.cosA,
+            worldPx.sinA
+        );
 
         ctx.restore();
-    }, [st, hoverTile, buildMode, canPlaceHover, cam]);
+    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA]);
 
     const screenToWorld = (clientX: number, clientY: number) => {
         const wrap = wrapRef.current;
@@ -157,8 +209,17 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const p = screenToWorld(clientX, clientY);
         if (!p) return null;
 
-        const tx = Math.floor(p.wx / TILE_SIZE);
-        const ty = Math.floor(p.wy / TILE_SIZE);
+        const ixRot = (p.wx - worldPx.originX) / HALF_W;
+        const iyRot = (p.wy - worldPx.originY) / HALF_H;
+
+        const ix = ixRot * worldPx.cosA + iyRot * worldPx.sinA;
+        const iy = -ixRot * worldPx.sinA + iyRot * worldPx.cosA;
+
+        const gx = (ix + iy) / 2;
+        const gy = (iy - ix) / 2;
+
+        const tx = Math.floor(gx);
+        const ty = Math.floor(gy);
 
         if (tx < 0 || ty < 0 || tx >= st.world.width || ty >= st.world.height) return null;
         return { x: tx, y: ty };
@@ -197,8 +258,6 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     };
 
     const handleMouseDown = (ev: React.MouseEvent) => {
-        const isSpace = ev.nativeEvent instanceof MouseEvent && (ev.nativeEvent as any).shiftKey === false;
-
         if (ev.button === 2 || (ev.button === 0 && ev.getModifierState("Space"))) {
             ev.preventDefault();
             startPan(ev.clientX, ev.clientY);
@@ -238,7 +297,8 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const beforeY = cam.y + my / cam.z;
 
         const dir = ev.deltaY > 0 ? 0.9 : 1.1;
-        const nextZ = Math.max(0.6, Math.min(2.5, cam.z * dir));
+        const minZ = minZoomForViewport(vw, vh);
+        const nextZ = Math.max(minZ, Math.min(2.5, cam.z * dir));
 
         const nextX = beforeX - mx / nextZ;
         const nextY = beforeY - my / nextZ;
@@ -258,8 +318,8 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             onContextMenu={handleContextMenu}
             onWheel={handleWheel}
             style={{
-                width: "100%",
-                height: "100%",
+                width: "100vw",
+                height: "100vh",
                 overflow: "hidden",
                 borderRadius: 12,
                 cursor,
@@ -272,61 +332,129 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                     display: "block",
                     width: "100%",
                     height: "100%",
-                    imageRendering: "pixelated"
+                    imageRendering: "auto"
                 }}
             />
         </div>
     );
 }
 
-function drawTiles(ctx: CanvasRenderingContext2D, st: GameState) {
-    const w = st.world.width;
+function tileToScreen(x: number, y: number, originX: number, originY: number, cosA: number, sinA: number) {
+    const ix = x - y;
+    const iy = x + y;
+    const rx = ix * cosA - iy * sinA;
+    const ry = ix * sinA + iy * cosA;
+    const sx = rx * HALF_W + originX;
+    const sy = ry * HALF_H + originY;
+    return { sx, sy };
+}
+
+function drawTileDiamond(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    fill: string,
+    stroke: string,
+    shadow: string
+) {
+    ctx.beginPath();
+    ctx.moveTo(sx, sy + HALF_H);
+    ctx.lineTo(sx + HALF_W, sy);
+    ctx.lineTo(sx + TILE_W, sy + HALF_H);
+    ctx.lineTo(sx + HALF_W, sy + TILE_H);
+    ctx.closePath();
+
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // subtle bottom shadow for depth
+    const grad = ctx.createLinearGradient(sx, sy + HALF_H, sx, sy + TILE_H);
+    grad.addColorStop(0, "transparent");
+    grad.addColorStop(1, shadow);
+    ctx.fillStyle = grad;
+    ctx.fill();
+}
+
+function drawTiles(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
     for (let y = 0; y < st.world.height; y++) {
-        for (let x = 0; x < w; x++) {
-            const tile = st.world.tiles[y * w + x];
+        for (let x = 0; x < st.world.width; x++) {
+            const tile = st.world.tiles[y * st.world.width + x];
             if (!tile) continue;
-            ctx.fillStyle = TILE_COLORS[tile.id] || "#7ea";
-            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            const { sx, sy } = tileToScreen(x, y, originX, originY, cosA, sinA);
+            const base = TILE_COLORS[tile.id] || "#7ea";
+            drawTileDiamond(ctx, sx, sy, base, "rgba(0,0,0,0.2)", "rgba(0,0,0,0.12)");
         }
     }
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, st: GameState) {
+function drawGrid(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
     ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
-    const w = st.world.width;
-    const h = st.world.height;
+    ctx.lineWidth = 0.8;
 
-    for (let x = 0; x <= w; x++) {
+    for (let y = 0; y <= st.world.height; y++) {
+        const { sx: sx0, sy: sy0 } = tileToScreen(0, y, originX, originY, cosA, sinA);
+        const { sx: sx1, sy: sy1 } = tileToScreen(st.world.width, y, originX, originY, cosA, sinA);
         ctx.beginPath();
-        ctx.moveTo(x * TILE_SIZE + 0.5, 0);
-        ctx.lineTo(x * TILE_SIZE + 0.5, h * TILE_SIZE);
+        ctx.moveTo(sx0, sy0 + HALF_H);
+        ctx.lineTo(sx1, sy1 + HALF_H);
         ctx.stroke();
     }
 
-    for (let y = 0; y <= h; y++) {
+    for (let x = 0; x <= st.world.width; x++) {
+        const { sx: sx0, sy: sy0 } = tileToScreen(x, 0, originX, originY, cosA, sinA);
+        const { sx: sx1, sy: sy1 } = tileToScreen(x, st.world.height, originX, originY, cosA, sinA);
         ctx.beginPath();
-        ctx.moveTo(0, y * TILE_SIZE + 0.5);
-        ctx.lineTo(w * TILE_SIZE, y * TILE_SIZE + 0.5);
+        ctx.moveTo(sx0 + HALF_W, sy0);
+        ctx.lineTo(sx1 + HALF_W, sy1 + TILE_H);
         ctx.stroke();
     }
 }
 
-function drawBuildings(ctx: CanvasRenderingContext2D, st: GameState) {
+function drawBuildings(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
 
     for (const b of entries) {
         const color = BUILDING_COLORS[b.type] || "#2e2e2e";
-        const x = b.pos.x * TILE_SIZE;
-        const y = b.pos.y * TILE_SIZE;
+        const { sx, sy } = tileToScreen(b.pos.x, b.pos.y, originX, originY, cosA, sinA);
 
-        ctx.fillStyle = color;
-        ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+        ctx.fillStyle = applyAlpha(color, 0.9);
+        ctx.beginPath();
+        ctx.moveTo(sx + HALF_W, sy - TILE_H * 0.2);
+        ctx.lineTo(sx + TILE_W, sy + HALF_H);
+        ctx.lineTo(sx + HALF_W, sy + TILE_H * 1.1);
+        ctx.lineTo(sx, sy + HALF_H);
+        ctx.closePath();
+        ctx.fill();
 
-        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        ctx.strokeStyle = "rgba(0,0,0,0.35)";
         ctx.lineWidth = 1;
-        ctx.strokeRect(x + 1.5, y + 1.5, TILE_SIZE - 3, TILE_SIZE - 3);
+        ctx.stroke();
     }
 }
 
@@ -335,18 +463,28 @@ function drawOverlays(
     st: GameState,
     hover: Vec2 | null,
     buildMode: BuildingTypeId | null,
-    canPlaceHover: boolean
+    canPlaceHover: boolean,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
 ) {
     const drawTileHighlight = (pos: Vec2, stroke: string, fill: string) => {
-        const x = pos.x * TILE_SIZE;
-        const y = pos.y * TILE_SIZE;
+        const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + HALF_H);
+        ctx.lineTo(sx + HALF_W, sy);
+        ctx.lineTo(sx + TILE_W, sy + HALF_H);
+        ctx.lineTo(sx + HALF_W, sy + TILE_H);
+        ctx.closePath();
 
         ctx.fillStyle = fill;
-        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        ctx.fill();
 
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(x + 0.75, y + 0.75, TILE_SIZE - 1.5, TILE_SIZE - 1.5);
+        ctx.stroke();
     };
 
     if (st.selection?.kind === "tile") {
@@ -360,14 +498,20 @@ function drawOverlays(
             drawTileHighlight(hover, s, f);
 
             const ghost = BUILDING_COLORS[buildMode] || "#ffffff";
-            const gx = hover.x * TILE_SIZE;
-            const gy = hover.y * TILE_SIZE;
+            const { sx, sy } = tileToScreen(hover.x, hover.y, originX, originY, cosA, sinA);
 
             ctx.fillStyle = applyAlpha(ghost, 0.35);
-            ctx.fillRect(gx + 3, gy + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+            ctx.beginPath();
+            ctx.moveTo(sx + HALF_W, sy + TILE_H * 0.15);
+            ctx.lineTo(sx + TILE_W * 0.9, sy + HALF_H);
+            ctx.lineTo(sx + HALF_W, sy + TILE_H * 0.85);
+            ctx.lineTo(sx + TILE_W * 0.1, sy + HALF_H);
+            ctx.closePath();
+            ctx.fill();
 
             ctx.strokeStyle = applyAlpha("#000000", 0.25);
-            ctx.strokeRect(gx + 2.5, gy + 2.5, TILE_SIZE - 5, TILE_SIZE - 5);
+            ctx.lineWidth = 1;
+            ctx.stroke();
         } else {
             drawTileHighlight(hover, "rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)");
         }
