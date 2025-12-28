@@ -2,9 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as engine from "../../src/game/engine";
-import type { Building, GameState, VillagerJobId } from "../../src/game/types/GameState";
+import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
+import type {
+    Building,
+    BuildingTypeId,
+    GameState,
+    Vec2,
+    VillagerJobId
+} from "../../src/game/types/GameState";
+import WorldCanvas from "./WorldCanvas";
 
 const JOBS: VillagerJobId[] = ["idle", "gatherer", "builder", "researcher", "fisher", "guard"];
+const BUILDABLES: BuildingTypeId[] = ["gather_hut", "campfire", "storage", "watchpost", "townhall"];
 
 export default function GameClient() {
     const [st, setSt] = useState<GameState>(() => engine.create.createGame());
@@ -13,6 +22,8 @@ export default function GameClient() {
 
     const [px, setPx] = useState(32);
     const [py, setPy] = useState(32);
+    const [buildMode, setBuildMode] = useState<BuildingTypeId | null>("gather_hut");
+    const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
 
     useEffect(() => {
         const loop = (t: number) => {
@@ -33,6 +44,28 @@ export default function GameClient() {
     const aliveVillagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
     const buildings = useMemo(() => Object.values(st.buildings), [st.buildings]);
     const hunger = st.alerts?.hunger?.severity ?? 0;
+    const hoveredBuilding = useMemo(() => {
+        if (!hoverTile) return null;
+        return buildings.find(b => b.pos.x === hoverTile.x && b.pos.y === hoverTile.y) || null;
+    }, [hoverTile, buildings]);
+
+    const hoveredTileId = useMemo(() => {
+        if (!hoverTile) return null;
+        const i = hoverTile.y * st.world.width + hoverTile.x;
+        return st.world.tiles[i]?.id ?? null;
+    }, [hoverTile, st.world]);
+
+    const canPlaceHover = useMemo(() => (hoverTile ? canPlaceAt(st, hoverTile) : false), [hoverTile, st]);
+
+    const handleTileClick = (pos: Vec2) => {
+        setSt(prev => {
+            let next: GameState = { ...prev, selection: { kind: "tile", pos } };
+            if (buildMode) {
+                next = engine.commands.placeBuilding(next, buildMode, pos);
+            }
+            return next;
+        });
+    };
 
     return (
         <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
@@ -64,6 +97,78 @@ export default function GameClient() {
                 <Badge label={`Hunger-Alert: ${hunger}`} />
                 <Badge label={`Buildings: ${buildings.length}`} />
                 <Badge label={`Uhr: ${formatClock(st)}`} />
+            </div>
+
+            <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                <div
+                    style={{
+                        display: "flex",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        background: "linear-gradient(135deg, #f7fbff, #eef3ff)"
+                    }}
+                >
+                    <div style={{ fontWeight: 600 }}>Build Mode</div>
+                    {BUILDABLES.map(type => (
+                        <Btn key={type} onClick={() => setBuildMode(mode => (mode === type ? null : type))} active={buildMode === type}>
+                            {type}
+                        </Btn>
+                    ))}
+                    <Btn onClick={() => setBuildMode(null)} disabled={!buildMode}>
+                        Clear
+                    </Btn>
+                    <div style={{ fontSize: 12, opacity: 0.8, display: "flex", gap: 8, alignItems: "center" }}>
+                        <span>Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"}</span>
+                        <span>Tile: {hoveredTileId ?? "—"}</span>
+                        <span>
+                            Spot: {hoverTile ? (canPlaceHover ? "frei" : "blockiert") : "—"}
+                        </span>
+                        {hoveredBuilding && <span>Building: {hoveredBuilding.type}</span>}
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        position: "relative",
+                        borderRadius: 16,
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        background: "linear-gradient(180deg, #f4f7fb, #e9eef5)",
+                        boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
+                        overflow: "hidden"
+                    }}
+                >
+                    <div style={{ overflow: "auto", padding: 12 }}>
+                        <WorldCanvas st={st} buildMode={buildMode} onTileClick={handleTileClick} onHover={setHoverTile} />
+                    </div>
+
+                    <div
+                        style={{
+                            position: "absolute",
+                            right: 12,
+                            top: 12,
+                            padding: "10px 12px",
+                            borderRadius: 12,
+                            background: "rgba(0,0,0,0.55)",
+                            color: "white",
+                            fontSize: 12,
+                            display: "grid",
+                            gap: 4,
+                            minWidth: 200
+                        }}
+                    >
+                        <div style={{ fontWeight: 700 }}>World Canvas</div>
+                        <div>Tiles: {st.world.width} x {st.world.height}</div>
+                        <div>Build: {buildMode ?? "—"}</div>
+                        <div>Hover: {hoverTile ? `${hoverTile.x},${hoverTile.y}` : "—"}</div>
+                        <div>Tile: {hoveredTileId ?? "—"}</div>
+                        <div>Placeable: {buildMode && hoverTile ? (canPlaceHover ? "yes" : "no") : "—"}</div>
+                        {hoveredBuilding && <div>Here: {hoveredBuilding.type}</div>}
+                    </div>
+                </div>
             </div>
 
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 14 }}>
@@ -277,11 +382,13 @@ function BuildingRow({
 function Btn({
     children,
     onClick,
-    disabled
+    disabled,
+    active
 }: {
     children: React.ReactNode;
     onClick: () => void;
     disabled?: boolean;
+    active?: boolean;
 }) {
     return (
         <button
@@ -290,10 +397,12 @@ function Btn({
             style={{
                 padding: "8px 10px",
                 borderRadius: 12,
-                border: "1px solid rgba(0,0,0,0.14)",
-                background: disabled ? "rgba(0,0,0,0.04)" : "white",
+                border: active ? "1px solid #0f172a" : "1px solid rgba(0,0,0,0.14)",
+                background: disabled ? "rgba(0,0,0,0.04)" : active ? "#0f172a" : "white",
+                color: active ? "white" : "#0f172a",
                 cursor: disabled ? "not-allowed" : "pointer",
-                opacity: disabled ? 0.6 : 1
+                opacity: disabled ? 0.6 : 1,
+                transition: "background 120ms ease, color 120ms ease, border-color 120ms ease"
             }}
         >
             {children}
