@@ -11,6 +11,8 @@ const TILE_H = 32;
 const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;
 const DEG2RAD = Math.PI / 180;
+const MAX_DPR = 1.75;
+const MIN_ZOOM = 1.15;
 
 const TILE_COLORS: Record<WorldTileId, string> = {
     water: "#6cd4ff",
@@ -91,7 +93,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const meadowAnimals = useMemo(() => createMeadowAnimals(st.world, st.seed), [st.seed, st.world]);
 
     const minZoomForViewport = useCallback(
-        (vw: number, vh: number) => Math.max(vw / worldPx.w, vh / worldPx.h) * 1.05,
+        (vw: number, vh: number) => Math.max(MIN_ZOOM, Math.max(vw / worldPx.w, vh / worldPx.h) * 1.08),
         [worldPx.w, worldPx.h]
     );
 
@@ -113,7 +115,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const c = canvasRef.current;
         if (!wrap || !c) return;
 
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
         const r = wrap.getBoundingClientRect();
         const w = Math.max(1, Math.floor(r.width));
         const h = Math.max(1, Math.floor(r.height));
@@ -192,7 +194,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const ctx = c.getContext("2d");
         if (!ctx) return;
 
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
         const r = wrap.getBoundingClientRect();
         const vw = Math.max(1, Math.floor(r.width));
         const vh = Math.max(1, Math.floor(r.height));
@@ -552,7 +554,7 @@ function createMeadowAnimals(world: GameState["world"], seed: number): AmbientAn
     if (!meadowTiles.length) return [];
 
     const rng = mulberry32(seed ^ 0x51c0ffee);
-    const desired = Math.max(6, Math.min(20, Math.floor(meadowTiles.length / 90)));
+    const desired = Math.max(4, Math.min(12, Math.floor(meadowTiles.length / 140)));
     const animals: AmbientAnimal[] = [];
     let attempts = 0;
 

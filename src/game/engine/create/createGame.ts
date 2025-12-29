@@ -2,7 +2,7 @@ import { GameState, GameSpeed } from "../../types/GameState";
 import { createInitialWorld } from "./createInitialWorld";
 import { createInitialVillagers } from "./createInitialVillagers";
 import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
-import { spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
+import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
 
 const MS_PER_DAY = 30 * 60 * 1000;
 
@@ -25,7 +25,6 @@ export function createGame(seed = Date.now()): GameState {
 
     const rng = mulberry32(seed ^ 0x9e3779b9);
     const initialRockCount = 5 + randInt(rng, 0, 1);
-    const initialTreeCount = 12 + randInt(rng, 0, 4);
 
     const base: GameState = {
         version: 1,
@@ -95,7 +94,9 @@ export function createGame(seed = Date.now()): GameState {
     };
 
     let next = spawnDesertRocks(base, initialRockCount, rng);
-    next = spawnForestTrees(next, initialTreeCount, rng);
+
+    const forestTreeTarget = forestTreeShortage(next, FOREST_TREE_FILL_RATIO);
+    next = spawnForestTrees(next, forestTreeTarget, rng, { targetFillRatio: FOREST_TREE_FILL_RATIO });
     const nextRockDay = base.time.day + randInt(rng, 1, 2);
     const nextTreeDay = base.time.day + randInt(rng, 1, 2);
 

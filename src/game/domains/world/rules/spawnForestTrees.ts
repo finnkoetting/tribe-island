@@ -3,9 +3,12 @@ import { getBuildingSize } from "../../buildings/model/buildingSizes";
 import { canPlaceAt } from "./canPlaceAt";
 import { placeAt } from "./placeAt";
 
+export const FOREST_TREE_FILL_RATIO = 0.4;
+
 const treeId = (rng: () => number) => `tree_${Math.floor(rng() * 1e9).toString(16)}`;
 
 const idxToPos = (i: number, width: number): Vec2 => ({ x: i % width, y: Math.floor(i / width) });
+const posToIdx = (pos: Vec2, width: number) => pos.y * width + pos.x;
 
 const isOccupied = (pos: Vec2, st: GameState): boolean => {
     for (const b of Object.values(st.buildings)) {
@@ -15,6 +18,35 @@ const isOccupied = (pos: Vec2, st: GameState): boolean => {
     }
     return false;
 };
+
+const tileAt = (st: GameState, pos: Vec2) => st.world.tiles[posToIdx(pos, st.world.width)];
+
+export function countForestTiles(world: GameState["world"]): number {
+    let count = 0;
+    for (const tile of world.tiles) {
+        if (tile?.id === "forest") count += 1;
+    }
+    return count;
+}
+
+export function countTreesOnForest(st: GameState): number {
+    let count = 0;
+    for (const b of Object.values(st.buildings)) {
+        if (b.type !== "tree") continue;
+        const tile = tileAt(st, b.pos);
+        if (tile?.id === "forest") count += 1;
+    }
+    return count;
+}
+
+export function forestTreeShortage(st: GameState, targetFillRatio = FOREST_TREE_FILL_RATIO): number {
+    if (targetFillRatio <= 0) return 0;
+    const forestTiles = countForestTiles(st.world);
+    if (!forestTiles) return 0;
+    const target = Math.floor(forestTiles * targetFillRatio);
+    const current = countTreesOnForest(st);
+    return Math.max(0, target - current);
+}
 
 const shuffle = <T,>(arr: T[], rng: () => number): T[] => {
     const copy = arr.slice();
@@ -43,10 +75,18 @@ const makeTree = (id: string, pos: Vec2): Building => ({
 });
 
 /**
- * Spawn up to `count` trees on free forest tiles.
+ * Spawn trees on free forest tiles, respecting an optional target fill ratio for the biome.
  */
-export function spawnForestTrees(st: GameState, count: number, rng: () => number): GameState {
-    if (count <= 0) return st;
+type SpawnTreeOptions = {
+    targetFillRatio?: number;
+};
+
+export function spawnForestTrees(st: GameState, count: number, rng: () => number, options?: SpawnTreeOptions): GameState {
+    const targetFillRatio = options?.targetFillRatio;
+    const shortage = targetFillRatio !== undefined ? forestTreeShortage(st, targetFillRatio) : 0;
+    const targetCount = targetFillRatio !== undefined ? Math.max(count, shortage) : count;
+
+    if (targetCount <= 0) return st;
 
     const forestIndices: number[] = [];
     for (let i = 0; i < st.world.tiles.length; i++) {
@@ -60,7 +100,7 @@ export function spawnForestTrees(st: GameState, count: number, rng: () => number
     let spawned = 0;
 
     for (const idx of shuffled) {
-        if (spawned >= count) break;
+        if (spawned >= targetCount) break;
         const pos = idxToPos(idx, st.world.width);
         if (isOccupied(pos, next)) continue;
         if (!canPlaceAt(next, pos, "tree")) continue;

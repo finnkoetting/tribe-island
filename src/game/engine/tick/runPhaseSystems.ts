@@ -1,6 +1,6 @@
 import { GameState, Alert, AlertId, Villager } from "../../types/GameState";
 import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
-import { spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
+import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
 
 export function runPhaseSystems(st: GameState): GameState {
     switch (st.time.phase) {
@@ -150,7 +150,9 @@ function spawnTreesIfDue(st: GameState): GameState {
     if (nextDay <= 0 || st.time.day < nextDay) return st;
 
     const rng = mulberry32((st.seed ^ 0x85ebca6b) ^ (st.time.day * 2246822519));
-    const after = spawnForestTrees(st, 1, rng);
+    const shortage = forestTreeShortage(st, FOREST_TREE_FILL_RATIO);
+    const spawnCount = shortage > 0 ? shortage : 0;
+    const after = spawnCount ? spawnForestTrees(st, spawnCount, rng, { targetFillRatio: FOREST_TREE_FILL_RATIO }) : st;
     const schedule = st.time.day + randInt(rng, 1, 2);
 
     return {
