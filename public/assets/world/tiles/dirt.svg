@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="dirtGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c08b52"/>
+      <stop offset="1" stop-color="#9d6a3b"/>
+    </linearGradient>
+    <pattern id="pebbles" width="10" height="10" patternUnits="userSpaceOnUse">
+      <ellipse cx="2" cy="3" rx="1.4" ry="1" fill="#7a5030" opacity="0.55"/>
+      <ellipse cx="7" cy="6" rx="1.2" ry="0.9" fill="#7f5634" opacity="0.45"/>
+      <ellipse cx="5" cy="1" rx="1.1" ry="0.8" fill="#8a5d36" opacity="0.4"/>
+    </pattern>
+    <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(18)">
+      <path d="M0 12 L12 0" stroke="#b07945" stroke-width="1.2" opacity="0.22"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#dirtGrad)"/>
+  <rect width="64" height="64" fill="url(#hatch)"/>
+  <rect width="64" height="64" fill="url(#pebbles)"/>
+</svg>

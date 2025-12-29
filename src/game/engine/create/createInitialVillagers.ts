@@ -17,6 +17,7 @@ export function createInitialVillagers(): Record<string, Villager> {
         pos: { x, y },
         job,
         assignedBuildingId: null,
+        homeBuildingId: null,
         stats,
         needs: {
             hunger: 0.2,

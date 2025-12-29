@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="forestGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7abf6c"/>
+      <stop offset="1" stop-color="#4c8b4f"/>
+    </linearGradient>
+    <pattern id="trees" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M8 1 L2 11 H6 L3 15 H13 L10 11 H14 Z" fill="#2f6036" opacity="0.9"/>
+      <rect x="7" y="11" width="2" height="5" fill="#4a3b2a" opacity="0.9"/>
+    </pattern>
+    <pattern id="speckle" width="10" height="10" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r="0.7" fill="#9dd28d" opacity="0.5"/>
+      <circle cx="8" cy="7" r="0.6" fill="#8ec982" opacity="0.4"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#forestGrad)"/>
+  <rect width="64" height="64" fill="url(#speckle)"/>
+  <rect width="64" height="64" fill="url(#trees)" opacity="0.9"/>
+</svg>

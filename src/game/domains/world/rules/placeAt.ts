@@ -25,6 +25,7 @@ export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Bu
         pos,
         level: 1,
         assignedVillagerIds: [],
+        residentIds: [],
         task: {
             kind: type === "gather_hut" ? "produce" : "none",
             progress: 0,

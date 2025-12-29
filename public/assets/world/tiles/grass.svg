@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8f2a3"/>
+      <stop offset="1" stop-color="#9edb73"/>
+    </linearGradient>
+    <pattern id="blades" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M1 8 L2.5 2 L4 8" stroke="#4d8c3f" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+      <path d="M6 8 L7 3 L8 8" stroke="#5da04f" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+    </pattern>
+    <pattern id="diags" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)">
+      <path d="M0 12 L12 0" stroke="#7bcf6a" stroke-width="1.1" opacity="0.25"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#grassGrad)"/>
+  <rect width="64" height="64" fill="url(#diags)"/>
+  <rect width="64" height="64" fill="url(#blades)" opacity="0.9"/>
+</svg>

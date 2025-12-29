@@ -101,6 +101,7 @@ export type Villager = {
     pos: Vec2;
     job: VillagerJobId;
     assignedBuildingId: Id | null;
+    homeBuildingId: Id | null;
     stats: VillagerStats;
     needs: VillagerNeeds;
     state: VillagerState;
@@ -115,7 +116,8 @@ export type BuildingTypeId =
     | "gather_hut"
     | "campfire"
     | "storage"
-    | "watchpost";
+    | "watchpost"
+    | "road";
 
 export type TaskKind = "build" | "produce" | "research" | "none";
 
@@ -133,6 +135,7 @@ export type Building = {
     pos: Vec2;
     level: number;
     assignedVillagerIds: Id[];
+    residentIds?: Id[];
     task: TaskState;
     output?: {
         resource: ResourceId;
@@ -162,7 +165,8 @@ export type EventId =
     | "trade_caravan"
     | "attack_wave"
     | "illness_outbreak"
-    | "job_assigned";
+    | "job_assigned"
+    | "home_assigned";
 
 export type GameEvent<T = Record<string, unknown>> = {
     id: EventId;

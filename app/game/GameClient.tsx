@@ -3,17 +3,224 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import * as engine from "../../src/game/engine";
+import { BUILDING_COSTS, formatCost } from "../../src/game/domains/buildings/model/buildingCosts";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
-import type { BuildingTypeId, GameState, Vec2 } from "../../src/game/types/GameState";
+import { getBuildingSize } from "../../src/game/domains/buildings/model/buildingSizes";
+import type { BuildingTypeId, GameState, QuestId, Vec2 } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
 
-const BUILDABLES: BuildingTypeId[] = ["gather_hut", "campfire", "storage", "watchpost", "townhall"];
-const BUILD_META: Record<BuildingTypeId, { title: string; cost: string }> = {
-    townhall: { title: "Rathaus", cost: "Start" },
-    gather_hut: { title: "Sammelhuette", cost: "20 Holz" },
-    campfire: { title: "Lagerfeuer", cost: "10 Holz" },
-    storage: { title: "Lagerhaus", cost: "25 Holz, 10 Stein" },
-    watchpost: { title: "Wachtposten", cost: "18 Holz, 6 Stein" }
+type BuildItem = {
+    id: string;
+    title: string;
+    size: string;
+    effect: string;
+    upgrade: string;
+    status: "available" | "locked" | "planned";
+    type?: BuildingTypeId;
+    cost?: string;
+};
+
+type BuildSection = {
+    id: string;
+    title: string;
+    focus: string;
+    accent: string;
+    items: BuildItem[];
+};
+
+const BUILD_SECTIONS: BuildSection[] = [
+    {
+        id: "stage1",
+        title: "Stufe 1 – Start & Ueberleben",
+        focus: "Nahrung, Moral, Basis-Kontrolle",
+        accent: "#ff914d",
+        items: [
+            {
+                id: "townhall",
+                type: "townhall",
+                title: "Rathaus",
+                size: "3x3",
+                effect: "Dorfzentrum, Job-Zuweisung, Quest-Trigger",
+                upgrade: "Mehr Villager-Slots, neue Menues",
+                status: "available",
+                cost: "Start"
+            },
+            {
+                id: "campfire",
+                type: "campfire",
+                title: "Lagerfeuer",
+                size: "2x2",
+                effect: "Moral-Stabilisator, Nacht-Sicherheit",
+                upgrade: "Groessere Moral-Aura",
+                status: "available",
+                cost: "10 Holz"
+            },
+            {
+                id: "road",
+                type: "road",
+                title: "Weg",
+                size: "1x1",
+                effect: "Verbinde Gebaeude",
+                upgrade: "Schneller laufen",
+                status: "available",
+                cost: "1 Holz"
+            },
+            {
+                id: "gather_hut",
+                type: "gather_hut",
+                title: "Sammlerhuette",
+                size: "2x2",
+                effect: "Beeren sammeln",
+                upgrade: "+Slots, bessere Tools",
+                status: "available",
+                cost: "20 Holz"
+            },
+            {
+                id: "storage_small",
+                type: "storage",
+                title: "Kleines Lager",
+                size: "2x2",
+                effect: "Erhoeht Lagerkapazitaet",
+                upgrade: "Richtung Grosses Lager",
+                status: "available",
+                cost: "25 Holz, 10 Stein"
+            },
+            { id: "woodcutter", title: "Holzfaellerhuette", size: "2x2", effect: "Holzproduktion", upgrade: "Effizientere Arbeit", status: "planned" },
+            { id: "sleep_hut", title: "Schlafhuette", size: "2x2", effect: "Regeneration, senkt Erschoepfung", upgrade: "Mehr Betten", status: "planned" },
+            { id: "well", title: "Brunnen", size: "1x1", effect: "Krankheit runter, Moral leicht rauf", upgrade: "Staerkere Effekte", status: "planned" }
+        ]
+    },
+    {
+        id: "stage2",
+        title: "Stufe 2 – Stabilisierung & Alltag",
+        focus: "Sicherheit, Veredelung, Dorfleben",
+        accent: "#fbbf24",
+        items: [
+            { id: "quarry", title: "Steinbruch", size: "3x3", effect: "Steinproduktion", upgrade: "Erz-Chance", status: "planned" },
+            { id: "workbench", title: "Werkbank", size: "2x2", effect: "Werkzeuge Stufe I", upgrade: "Stufe II/III", status: "planned" },
+            { id: "drying_rack", title: "Trockengestell", size: "2x1", effect: "Nahrung haltbarer", upgrade: "Geringerer Verderb", status: "planned" },
+            {
+                id: "watchpost",
+                type: "watchpost",
+                title: "Wachtposten",
+                size: "2x2",
+                effect: "Angriffsschaden runter",
+                upgrade: "Sichtweite rauf",
+                status: "available",
+                cost: "18 Holz, 6 Stein"
+            },
+            { id: "fishing_hut", title: "Fischerhuette", size: "2x2 (am Wasser)", effect: "Fisch", upgrade: "Netze, Boote", status: "planned" },
+            { id: "herb_garden", title: "Kraeutergarten", size: "2x2", effect: "Medizin-Basis", upgrade: "Bessere Heilung", status: "planned" },
+            { id: "meeting_ground", title: "Versammlungsplatz", size: "3x3", effect: "Moral-Boost bei Events", upgrade: "Buff-Dauer rauf", status: "planned" }
+        ]
+    },
+    {
+        id: "stage3",
+        title: "Stufe 3 – Veredelung & Tiefe",
+        focus: "Planung, Produktion, Entscheidungen",
+        accent: "#3b82f6",
+        items: [
+            { id: "carpentry", title: "Schreinerei", size: "3x2", effect: "Holz zu Planken", upgrade: "Bonusoutput", status: "planned" },
+            { id: "weaving", title: "Weberei", size: "3x2", effect: "Fasern zu Stoffen", upgrade: "Moral-Items", status: "planned" },
+            { id: "medical_hut", title: "Medizinische Huette", size: "2x2", effect: "Krankheiten heilbar", upgrade: "Seuchen abmildern", status: "planned" },
+            { id: "warehouse_big", title: "Grosses Lager", size: "3x3", effect: "Massive Kapazitaet", upgrade: "Sortierung (Bonusse)", status: "planned" },
+            { id: "tavern", title: "Taverne", size: "3x3", effect: "Moral hoch, Konflikte runter", upgrade: "Produktivitaetsbonus", status: "planned" },
+            { id: "research_tent", title: "Forschungszelt", size: "2x2", effect: "Erste Techs", upgrade: "Richtung Forschungsgebaeude", status: "planned" }
+        ]
+    },
+    {
+        id: "stage4",
+        title: "Stufe 4 – Midgame-Strategie",
+        focus: "Spezialisierung und Risiken",
+        accent: "#a855f7",
+        items: [
+            { id: "academy", title: "Akademie", size: "3x3", effect: "Forschung beschleunigen", upgrade: "Pfad-Spezialisierung", status: "planned" },
+            { id: "mine", title: "Mine", size: "3x3", effect: "Kupfer/Eisen", upgrade: "Tiefer graben", status: "planned" },
+            { id: "forge", title: "Schmiede", size: "3x3", effect: "Metallwerkzeuge, Waffen", upgrade: "Qualitaet rauf", status: "planned" },
+            { id: "watchtower", title: "Wachturm", size: "2x3", effect: "Angriffe frueh erkennen", upgrade: "Fernschaden", status: "planned" },
+            { id: "gate_wall", title: "Tor & Palisade", size: "Variabel", effect: "Dorf verteidigen", upgrade: "Stein zu Metall", status: "planned" },
+            { id: "market", title: "Marktplatz", size: "4x4", effect: "Karawanen-Handel", upgrade: "Bessere Angebote", status: "planned" }
+        ]
+    },
+    {
+        id: "stage5",
+        title: "Stufe 5 – Spaetes Spiel & Emotion",
+        focus: "Story, Ruf, Konsequenzen",
+        accent: "#ef4444",
+        items: [
+            { id: "temple", title: "Tempel", size: "4x4", effect: "Globale Moral, Ruf", upgrade: "Seltene Events", status: "planned" },
+            { id: "memorial", title: "Gedenkstaette", size: "2x2", effect: "Trauer-Malus runter", upgrade: "Buffs aus Erinnerungen", status: "planned" },
+            { id: "caravan_yard", title: "Karawanenhof", size: "4x3", effect: "Haefigere Haendler", upgrade: "Exklusive Waren", status: "planned" },
+            { id: "archive", title: "Archiv", size: "3x2", effect: "Wissen speichern", upgrade: "Tech-Kosten runter", status: "planned" },
+            { id: "training_ground", title: "Ausbildungsplatz", size: "3x3", effect: "Villager trainieren", upgrade: "Spezialisierungen", status: "planned" },
+            { id: "ritual_ground", title: "Ritualplatz", size: "3x3", effect: "Risiko-Events mit Chance", upgrade: "Kontrolle rauf", status: "planned" }
+        ]
+    },
+    {
+        id: "optional",
+        title: "Optional / Late-Late Game",
+        focus: "Prestige und Welt",
+        accent: "#111827",
+        items: [
+            { id: "observatory", title: "Observatorium", size: "3x3", effect: "Events vorhersagen", upgrade: "Praezision", status: "planned" },
+            { id: "harbor", title: "Hafen", size: "4x3", effect: "Neue Karten / Welt", upgrade: "Schiffe", status: "planned" },
+            { id: "outpost", title: "Aussenposten", size: "3x3", effect: "Ressourcen remote", upgrade: "Automatisierung", status: "planned" },
+            { id: "hunting_cabin", title: "Jagdhuette", size: "3x2", effect: "Leder & Fleisch", upgrade: "Bessere Fallen", status: "planned" },
+            { id: "bridge", title: "Bruecke", size: "Variabel", effect: "Neue Biome", upgrade: "Stabilitaet", status: "planned" },
+            { id: "lighthouse", title: "Leuchtturm", size: "2x2", effect: "Karawanen-Sicht", upgrade: "Signalweite", status: "planned" },
+            { id: "guildhall", title: "Gildenhaus", size: "3x3", effect: "Quests & Ruf", upgrade: "Auftragswahl", status: "planned" },
+            { id: "monument", title: "Monument", size: "4x4", effect: "Prestige-Bau", upgrade: "Stadtbonus", status: "planned" }
+        ]
+    }
+];
+
+const TUTORIAL_STEPS: Array<{ id: QuestId; description: string; target?: BuildingTypeId; hint?: string }> = [
+    {
+        id: "tutorial_home",
+        description: "Richte ein Rathaus (3x3) ein. Es dient als Zentrum fuer Jobs und Auswahl.",
+        target: "townhall",
+        hint: "Waehle im Baumenue das Rathaus und platziere es auf freiem Boden."
+    },
+    {
+        id: "tutorial_food",
+        description: "Baue ein Lagerfeuer fuer Moral und erste Nachtruhe.",
+        target: "campfire",
+        hint: "Kosten im Blick behalten und nahe beim Rathaus platzieren."
+    },
+    {
+        id: "tutorial_research",
+        description: "Errichte eine Sammlerhuette, damit du regelmaessig Beeren bekommst.",
+        target: "gather_hut",
+        hint: "Nach dem Bau mindestens einen Bewohner zuweisen."
+    }
+];
+
+const BUILDABLE_ITEMS = BUILD_SECTIONS.flatMap(section => section.items).filter((item): item is BuildItem & { type: BuildingTypeId } => item.status === "available" && Boolean(item.type));
+const BUILDABLE_TYPE_SET = new Set<BuildingTypeId>(BUILDABLE_ITEMS.map(item => item.type));
+const BUILD_META: Record<BuildingTypeId, { title: string; cost: string; size: string; effect: string }> = BUILDABLE_ITEMS.reduce(
+    (acc, item) => {
+        acc[item.type] = {
+            title: item.title,
+            cost: formatCost(BUILDING_COSTS[item.type]),
+            size: item.size,
+            effect: item.effect
+        };
+        return acc;
+    },
+    {} as Record<BuildingTypeId, { title: string; cost: string; size: string; effect: string }>
+);
+
+const THEME = {
+    background: "radial-gradient(circle at 20% 18%, #fff5e7 0%, #ffe4c7 40%, #ffd4b4 58%, #fcb39d 75%, #f59a94 100%)",
+    text: "#2e1b10",
+    panelBg: "rgba(255, 245, 235, 0.92)",
+    panelBorder: "rgba(255, 185, 145, 0.7)",
+    panelShadow: "0 18px 36px rgba(245, 142, 96, 0.28)",
+    chipBg: "rgba(255, 255, 255, 0.82)",
+    chipBorder: "rgba(70, 38, 15, 0.16)",
+    accent: "#ff914d",
+    accentGlow: "0 12px 26px rgba(255, 145, 77, 0.35)",
+    overlayGradient: "linear-gradient(180deg, transparent 0%, rgba(255, 223, 200, 0.9) 55%)"
 };
 
 const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: FC; color: string }> = [
@@ -32,7 +239,10 @@ export default function GameClient() {
     const lastRef = useRef<number | null>(null);
     const rafRef = useRef<number | null>(null);
 
-    const [buildMode, setBuildMode] = useState<BuildingTypeId | null>("gather_hut");
+    const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
+    const [buildMenuOpen, setBuildMenuOpen] = useState(false);
+    const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
+    const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
 
     useEffect(() => {
@@ -54,23 +264,83 @@ export default function GameClient() {
     const aliveVillagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
     const hoveredBuilding = useMemo(() => {
         if (!hoverTile) return null;
-        return Object.values(st.buildings).find(b => b.pos.x === hoverTile.x && b.pos.y === hoverTile.y) || null;
+        return (
+            Object.values(st.buildings).find(b => {
+                const size = getBuildingSize(b.type);
+                return hoverTile.x >= b.pos.x && hoverTile.x < b.pos.x + size.w && hoverTile.y >= b.pos.y && hoverTile.y < b.pos.y + size.h;
+            }) || null
+        );
     }, [hoverTile, st.buildings]);
     const hoveredTileId = useMemo(() => {
         if (!hoverTile) return "";
         const i = hoverTile.y * st.world.width + hoverTile.x;
         return st.world.tiles[i]?.id ?? "";
     }, [hoverTile, st.world]);
-    const canPlaceHover = useMemo(() => (hoverTile ? canPlaceAt(st, hoverTile) : false), [hoverTile, st]);
+    const canPlaceHover = useMemo(() => (hoverTile && buildMode ? canPlaceAt(st, hoverTile, buildMode) : false), [hoverTile, st, buildMode]);
+
+    const unlocks = useMemo(() => {
+        const knowledge = st.inventory.knowledge ?? 0;
+        return {
+            stage1: true,
+            stage2: knowledge >= 5,
+            stage3: knowledge >= 15,
+            stage4: knowledge >= 30,
+            stage5: knowledge >= 45,
+            optional: knowledge >= 60
+        } as Record<string, boolean>;
+    }, [st.inventory.knowledge]);
+
+    const handleSelectBuild = (type: BuildingTypeId) => {
+        if (!BUILDABLE_TYPE_SET.has(type)) return;
+        setBuildMode(prev => (prev === type ? null : type));
+        setBuildMenuOpen(false);
+        setVillagerMenuOpen(false);
+    };
+
+    const handleAssignHome = (villagerId: string, buildingId: string | null) => {
+        setSt(prev => engine.commands.assignVillagerHome(prev, villagerId, buildingId));
+    };
+
+    const handleAssignWork = (villagerId: string, buildingId: string | null) => {
+        setSt(prev => engine.commands.assignVillagerToBuilding(prev, villagerId, buildingId));
+    };
 
     const handleTileClick = (pos: Vec2) => {
         setSt(prev => {
-            let next: GameState = { ...prev, selection: { kind: "tile", pos } };
-            if (buildMode) {
+            const building = findBuildingAt(prev, pos);
+            let next: GameState;
+
+            if (building) {
+                next = { ...prev, selection: { kind: "building", id: building.id } };
+                setBuildingModalOpen(true);
+            } else {
+                next = { ...prev, selection: { kind: "tile", pos } };
+                setBuildingModalOpen(false);
+            }
+
+            if (buildMode && BUILDABLE_TYPE_SET.has(buildMode)) {
                 next = engine.commands.placeBuilding(next, buildMode, pos);
             }
             return next;
         });
+    };
+
+    const handleCollect = (buildingId: string) => {
+        setSt(prev => engine.commands.collectFromBuilding(prev, buildingId));
+    };
+
+    const findBuildingAt = (state: GameState, pos: Vec2) => {
+        return Object.values(state.buildings).find(b => {
+            const size = getBuildingSize(b.type);
+            return pos.x >= b.pos.x && pos.x < b.pos.x + size.w && pos.y >= b.pos.y && pos.y < b.pos.y + size.h;
+        }) || null;
+    };
+
+    const handlePlanTutorialBuild = (type: BuildingTypeId) => {
+        if (!BUILDABLE_TYPE_SET.has(type)) return;
+        setBuildMode(type);
+        setBuildMenuOpen(false);
+        setVillagerMenuOpen(false);
     };
 
     return (
@@ -79,8 +349,8 @@ export default function GameClient() {
                 position: "relative",
                 minHeight: "100vh",
                 overflow: "hidden",
-                background: "radial-gradient(circle at 20% 20%, #1f2a38 0%, #111827 45%, #0b1220 100%)",
-                color: "#e5e7eb",
+                background: THEME.background,
+                color: THEME.text,
                 fontFamily: "Nunito, system-ui, sans-serif"
             }}
         >
@@ -96,9 +366,35 @@ export default function GameClient() {
 
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 <TopLeftHud st={st} />
+                <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
                 <HoverCard hoveredBuilding={hoveredBuilding} hoveredTileId={hoveredTileId} hoverTile={hoverTile} canPlace={canPlaceHover} buildMode={buildMode} />
-                <BottomHud st={st} setSt={setSt} buildMode={buildMode} setBuildMode={setBuildMode} villagerCount={aliveVillagers.length} />
+                <BuildMenu open={buildMenuOpen} sections={BUILD_SECTIONS} activeType={buildMode} unlocks={unlocks} onSelect={handleSelectBuild} onClose={() => setBuildMenuOpen(false)} />
+                <BuildingModal
+                    open={buildingModalOpen && st.selection.kind === "building" && Boolean(st.buildings[st.selection.id])}
+                    building={st.selection.kind === "building" ? st.buildings[st.selection.id] : null}
+                    onClose={() => setBuildingModalOpen(false)}
+                    onCollect={handleCollect}
+                />
+                <VillagerMenu
+                    open={villagerMenuOpen}
+                    st={st}
+                    onClose={() => setVillagerMenuOpen(false)}
+                    onAssignHome={handleAssignHome}
+                    onAssignWork={handleAssignWork}
+                />
+                <BottomHud
+                    st={st}
+                    setSt={setSt}
+                    buildMode={buildMode}
+                    buildMenuOpen={buildMenuOpen}
+                    onToggleBuildMenu={() => setBuildMenuOpen(prev => !prev)}
+                    villagerMenuOpen={villagerMenuOpen}
+                    onToggleVillagerMenu={() => setVillagerMenuOpen(prev => !prev)}
+                    onCancelBuild={() => setBuildMode(null)}
+                    villagerCount={aliveVillagers.length}
+                    onCloseBuildingModal={() => setBuildingModalOpen(false)}
+                />
             </div>
         </div>
     );
@@ -112,10 +408,12 @@ function TopLeftHud({ st }: { st: GameState }) {
                 top: 16,
                 left: 18,
                 padding: "10px 14px",
-                background: "rgba(0,0,0,0.55)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                width: "min(360px, 92vw)",
+                background: THEME.panelBg,
+                border: `1px solid ${THEME.panelBorder}`,
                 borderRadius: 12,
-                boxShadow: "0 12px 28px rgba(0,0,0,0.4)",
+                boxShadow: THEME.panelShadow,
+                backdropFilter: "blur(6px)",
                 pointerEvents: "auto"
             }}
         >
@@ -124,6 +422,94 @@ function TopLeftHud({ st }: { st: GameState }) {
                 <Tag label="Phase" value={st.time.phase} />
                 <Tag label="Zeit" value={formatClock(st)} />
                 <Tag label="Tag" value={String(st.time.day)} />
+            </div>
+        </div>
+    );
+}
+
+function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"]; onSelectBuild: (type: BuildingTypeId) => void }) {
+    if (!quests) return null;
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                top: 110,
+                left: 18,
+                width: "min(360px, 92vw)",
+                padding: 12,
+                background: THEME.panelBg,
+                border: `1px solid ${THEME.panelBorder}`,
+                borderRadius: 14,
+                boxShadow: THEME.panelShadow,
+                backdropFilter: "blur(6px)",
+                pointerEvents: "auto",
+                display: "grid",
+                gap: 10
+            }}
+        >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                    <div style={{ fontWeight: 800, fontSize: 15 }}>Tutorial</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>Fokus: Baue zuerst das Rathaus</div>
+                </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 8 }}>
+                {TUTORIAL_STEPS.map(step => {
+                    const quest = quests[step.id];
+                    const done = quest?.done;
+                    const meta = step.target ? BUILD_META[step.target] : undefined;
+
+                    return (
+                        <div
+                            key={step.id}
+                            style={{
+                                border: `1px solid ${done ? THEME.chipBorder : THEME.panelBorder}`,
+                                background: done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.82)",
+                                borderRadius: 12,
+                                padding: 10,
+                                display: "grid",
+                                gap: 6,
+                                opacity: done ? 0.7 : 1
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div
+                                    style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 20,
+                                        background: done ? "#22c55e" : THEME.accent,
+                                        boxShadow: done ? "0 0 0 6px rgba(34,197,94,0.18)" : THEME.accentGlow
+                                    }}
+                                />
+                                <div style={{ fontWeight: 800 }}>{quest?.title ?? "Schritt"}</div>
+                                {quest && <span style={{ fontSize: 11, opacity: 0.65 }}>Fortschritt: {quest.progress}/{quest.goal}</span>}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.8 }}>{step.description}</div>
+                            {step.hint && <div style={{ fontSize: 11, opacity: 0.65 }}>Hinweis: {step.hint}</div>}
+                            {meta && <div style={{ fontSize: 11, opacity: 0.75 }}>Kosten: {meta.cost}</div>}
+                            {!done && step.target && (
+                                <button
+                                    onClick={() => onSelectBuild(step.target!)}
+                                    style={{
+                                        justifySelf: "start",
+                                        padding: "8px 12px",
+                                        borderRadius: 10,
+                                        border: `1px solid ${THEME.panelBorder}`,
+                                        background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
+                                        cursor: "pointer",
+                                        fontWeight: 700,
+                                        boxShadow: THEME.panelShadow
+                                    }}
+                                >
+                                    {meta ? `${meta.title} bauen` : "Bauen"}
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -151,10 +537,11 @@ function TopRightResources({ st }: { st: GameState }) {
                         gap: 10,
                         minWidth: 120,
                         padding: "6px 10px",
-                        background: "rgba(0,0,0,0.55)",
+                        background: THEME.panelBg,
                         borderRadius: 10,
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        boxShadow: "0 8px 18px rgba(0,0,0,0.35)"
+                        border: `1px solid ${THEME.panelBorder}`,
+                        boxShadow: THEME.panelShadow,
+                        backdropFilter: "blur(4px)"
                     }}
                 >
                     <span
@@ -165,16 +552,16 @@ function TopRightResources({ st }: { st: GameState }) {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: `linear-gradient(145deg, ${res.color}33, ${res.color}22)`,
+                            background: `linear-gradient(145deg, ${res.color}2b, #fff3e2)`,
                             border: `1px solid ${res.color}55`,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.12)",
+                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.38)",
                             fontSize: 15
                         }}
                     >
                         <res.Icon />
                     </span>
                     <span style={{ flex: 1, opacity: 0.85 }}>{res.label}</span>
-                    <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{st.inventory[res.id] ?? 0}</span>
+                    <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", color: THEME.text }}>{st.inventory[res.id] ?? 0}</span>
                 </div>
             ))}
         </div>
@@ -191,10 +578,10 @@ function HoverCard({ hoveredBuilding, hoveredTileId, hoverTile, canPlace, buildM
                 left: "50%",
                 transform: "translateX(-50%)",
                 padding: "8px 12px",
-                background: "rgba(0,0,0,0.55)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                background: THEME.panelBg,
+                border: `1px solid ${THEME.panelBorder}`,
                 borderRadius: 10,
-                boxShadow: "0 12px 24px rgba(0,0,0,0.35)",
+                boxShadow: THEME.panelShadow,
                 display: "flex",
                 gap: 10,
                 pointerEvents: "none",
@@ -204,12 +591,124 @@ function HoverCard({ hoveredBuilding, hoveredTileId, hoverTile, canPlace, buildM
             <span>Tile {hoverTile.x},{hoverTile.y} ({hoveredTileId || "-"})</span>
             {buildMode && <span>| Modus: {BUILD_META[buildMode]?.title ?? buildMode}</span>}
             {buildMode && <span>| {canPlace ? "frei" : "blockiert"}</span>}
+            {buildMode && (
+                <span>
+                    | Groesse: {getBuildingSize(buildMode).w}x{getBuildingSize(buildMode).h}
+                </span>
+            )}
             {hoveredBuilding && <span>| {BUILD_META[hoveredBuilding.type]?.title ?? hoveredBuilding.type}</span>}
         </div>
     );
 }
 
-function BottomHud({ st, setSt, buildMode, setBuildMode, villagerCount }: { st: GameState; setSt: React.Dispatch<React.SetStateAction<GameState>>; buildMode: BuildingTypeId | null; setBuildMode: (m: BuildingTypeId | null) => void; villagerCount: number }) {
+function BuildingModal({ open, building, onClose, onCollect }: { open: boolean; building: GameState["buildings"][string] | null; onClose: () => void; onCollect: (id: string) => void }) {
+    if (!open || !building) return null;
+    const meta = BUILD_META[building.type];
+    const collectable = building.task.collectable && building.output;
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "auto",
+                background: "rgba(0,0,0,0.35)",
+                padding: 24,
+                zIndex: 20
+            }}
+        >
+            <div
+                style={{
+                    width: "min(460px, 92vw)",
+                    background: THEME.panelBg,
+                    borderRadius: 16,
+                    border: `1px solid ${THEME.panelBorder}`,
+                    boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+                    padding: 16,
+                    display: "grid",
+                    gap: 12
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 16 }}>{meta?.title ?? building.type}</div>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>ID: {building.id}</div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            border: `1px solid ${THEME.chipBorder}`,
+                            background: THEME.chipBg,
+                            borderRadius: 10,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            fontWeight: 700
+                        }}
+                    >
+                        Schliessen
+                    </button>
+                </div>
+
+                <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
+                    <div>Level: {building.level}</div>
+                    {meta && <div>Effekt: {meta.effect}</div>}
+                    <div>Bewohner zugewiesen: {building.assignedVillagerIds.length}</div>
+                </div>
+
+                <div style={{ border: `1px solid ${THEME.panelBorder}`, borderRadius: 12, padding: 10, background: "rgba(255,255,255,0.9)" }}>
+                    <div style={{ fontWeight: 800, marginBottom: 6 }}>Auftrag</div>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Status: {building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : "Läuft"}</div>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Fortschritt: {Math.floor((building.task.progress / Math.max(1, building.task.duration)) * 100)}%</div>
+                    {building.output && <div style={{ fontSize: 12, opacity: 0.8 }}>Ausgabe: {building.output.amount} {building.output.resource}</div>}
+                    {collectable && (
+                        <button
+                            onClick={() => onCollect(building.id)}
+                            style={{
+                                marginTop: 8,
+                                padding: "8px 12px",
+                                borderRadius: 10,
+                                border: `1px solid ${THEME.accent}`,
+                                background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
+                                cursor: "pointer",
+                                fontWeight: 800,
+                                boxShadow: THEME.accentGlow
+                            }}
+                        >
+                            Einsammeln
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function BottomHud({
+    st,
+    setSt,
+    buildMode,
+    buildMenuOpen,
+    onToggleBuildMenu,
+    villagerMenuOpen,
+    onToggleVillagerMenu,
+    onCancelBuild,
+    villagerCount,
+    onCloseBuildingModal
+}: {
+    st: GameState;
+    setSt: React.Dispatch<React.SetStateAction<GameState>>;
+    buildMode: BuildingTypeId | null;
+    buildMenuOpen: boolean;
+    onToggleBuildMenu: () => void;
+    villagerMenuOpen: boolean;
+    onToggleVillagerMenu: () => void;
+    onCancelBuild: () => void;
+    villagerCount: number;
+    onCloseBuildingModal: () => void;
+}) {
     const hunger = st.alerts?.hunger?.severity ?? 0;
     return (
         <div
@@ -224,7 +723,7 @@ function BottomHud({ st, setSt, buildMode, setBuildMode, villagerCount }: { st: 
                 justifyContent: "space-between",
                 pointerEvents: "none",
                 gap: 12,
-                background: "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 55%)"
+                background: THEME.overlayGradient
             }}
         >
             <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
@@ -233,16 +732,28 @@ function BottomHud({ st, setSt, buildMode, setBuildMode, villagerCount }: { st: 
                 <SpeedButton label=">>" active={st.speed === 2} onClick={() => setSt(s => ({ ...s, speed: 2 }))} />
             </div>
 
-            <div style={{ display: "grid", gap: 8, pointerEvents: "auto" }}>
-                <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
-                    {BUILDABLES.map(type => (
-                        <BuildButton key={type} active={buildMode === type} label={BUILD_META[type]?.title ?? type} onClick={() => setBuildMode(prev => (prev === type ? null : type))} />
-                    ))}
-                    <BuildButton active={!buildMode} label="Abbrechen" onClick={() => setBuildMode(null)} />
-                </div>
-                <div style={{ textAlign: "center", fontSize: 12, opacity: 0.85 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
+                <HammerButton active={buildMenuOpen} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                <VillagerButton active={villagerMenuOpen} onClick={onToggleVillagerMenu} />
+                <div style={{ minWidth: 200, textAlign: "center", fontSize: 12, opacity: 0.85 }}>
                     {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode} (${BUILD_META[buildMode]?.cost ?? ""})` : "Kein Bau aktiv"}
                 </div>
+                {buildMode && (
+                    <button
+                        onClick={onCancelBuild}
+                        style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: `1px solid ${THEME.chipBorder}`,
+                            background: THEME.chipBg,
+                            cursor: "pointer",
+                            fontWeight: 700,
+                            boxShadow: THEME.panelShadow
+                        }}
+                    >
+                        Abbrechen
+                    </button>
+                )}
             </div>
 
             <div style={{ display: "grid", gap: 6, pointerEvents: "auto", justifyItems: "end" }}>
@@ -267,33 +778,12 @@ function SpeedButton({ label, active, onClick }: { label: string; active?: boole
                 width: 44,
                 height: 44,
                 borderRadius: 10,
-                border: active ? "1px solid #22d3ee" : "1px solid rgba(255,255,255,0.14)",
-                background: active ? "rgba(34,211,238,0.18)" : "rgba(0,0,0,0.5)",
-                color: "#e5e7eb",
+                border: active ? `1px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                color: THEME.text,
                 fontWeight: 800,
                 cursor: "pointer",
-                boxShadow: active ? "0 10px 20px rgba(34,211,238,0.25)" : "0 8px 16px rgba(0,0,0,0.35)"
-            }}
-        >
-            {label}
-        </button>
-    );
-}
-
-function BuildButton({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: active ? "1px solid #22d3ee" : "1px solid rgba(255,255,255,0.12)",
-                background: active ? "rgba(34,211,238,0.14)" : "rgba(0,0,0,0.55)",
-                color: "#e5e7eb",
-                cursor: "pointer",
-                minWidth: 110,
-                boxShadow: "0 10px 18px rgba(0,0,0,0.35)",
-                fontWeight: 700
+                boxShadow: active ? THEME.accentGlow : "0 8px 16px rgba(46, 24, 8, 0.18)"
             }}
         >
             {label}
@@ -302,7 +792,10 @@ function BuildButton({ label, active, onClick }: { label: string; active?: boole
 }
 
 function Tag({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "warn" }) {
-    const palette = tone === "warn" ? { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)" } : { bg: "rgba(255,255,255,0.08)", border: "rgba(255,255,255,0.16)" };
+    const palette =
+        tone === "warn"
+            ? { bg: "rgba(255,149,128,0.22)", border: "rgba(255,149,128,0.6)" }
+            : { bg: THEME.chipBg, border: THEME.chipBorder };
     return (
         <span
             style={{
@@ -315,12 +808,331 @@ function Tag({ label, value, tone = "muted" }: { label: string; value: string; t
                 background: palette.bg,
                 fontSize: 12,
                 fontWeight: 700,
-                color: "#e5e7eb"
+                color: THEME.text,
+                boxShadow: THEME.panelShadow
             }}
         >
             <span style={{ opacity: 0.75 }}>{label}</span>
             <span>{value}</span>
         </span>
+    );
+}
+
+function HammerButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            aria-label="Build menu"
+            style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                cursor: "pointer",
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center"
+            }}
+        >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 20 14 10" />
+                <path d="M13 6 17 2l3 3-4 4" />
+                <path d="m3 21 3-1 1-3-3 1-1 3Z" />
+            </svg>
+        </button>
+    );
+}
+
+function VillagerButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            aria-label="Bewohner menu"
+            style={{
+                width: 52,
+                height: 52,
+                borderRadius: 14,
+                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                cursor: "pointer",
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center"
+            }}
+        >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="3.2" />
+                <path d="M5 20c1-3 4-5 7-5s6 2 7 5" />
+            </svg>
+        </button>
+    );
+}
+
+function BuildMenu({
+    open,
+    sections,
+    activeType,
+    unlocks,
+    onSelect,
+    onClose
+}: {
+    open: boolean;
+    sections: BuildSection[];
+    activeType: BuildingTypeId | null;
+    unlocks: Record<string, boolean>;
+    onSelect: (type: BuildingTypeId) => void;
+    onClose: () => void;
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+                pointerEvents: "auto"
+            }}
+        >
+            <div
+                style={{
+                    position: "relative",
+                    maxHeight: "80vh",
+                    width: "min(1100px, 92vw)",
+                    overflow: "hidden",
+                    background: THEME.panelBg,
+                    borderRadius: 18,
+                    border: `1px solid ${THEME.panelBorder}`,
+                    boxShadow: "0 28px 60px rgba(0,0,0,0.25)",
+                    backdropFilter: "blur(8px)",
+                    pointerEvents: "auto",
+                    display: "flex",
+                    flexDirection: "column"
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${THEME.panelBorder}` }}>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 16 }}>Bauen</div>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>Kategorisiert nach Stufen, freischaltbar ueber Forschung</div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            border: `1px solid ${THEME.chipBorder}`,
+                            background: THEME.chipBg,
+                            borderRadius: 10,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            fontWeight: 700
+                        }}
+                    >
+                        Schliessen
+                    </button>
+                </div>
+
+                <div style={{ padding: 16, overflowY: "auto", display: "grid", gap: 16 }}>
+                    {sections.map(section => {
+                        const unlocked = unlocks[section.id] ?? false;
+                        return (
+                            <div key={section.id} style={{ border: `1px solid ${section.accent}33`, borderRadius: 14, padding: 12, background: "rgba(255,255,255,0.75)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                                    <div
+                                        style={{
+                                            width: 10,
+                                            height: 10,
+                                            borderRadius: 20,
+                                            background: section.accent,
+                                            boxShadow: `0 0 0 6px ${section.accent}18`
+                                        }}
+                                    />
+                                    <div style={{ fontWeight: 800 }}>{section.title}</div>
+                                    <div style={{ fontSize: 12, opacity: 0.7 }}>{section.focus}</div>
+                                    {!unlocked && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: section.accent }}>Gesperrt (Forschung)</span>}
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+                                    {section.items.map(item => {
+                                        const selectable = unlocked && item.status === "available" && item.type && BUILDABLE_TYPE_SET.has(item.type);
+                                        const locked = !unlocked || item.status !== "available" || !item.type || !BUILDABLE_TYPE_SET.has(item.type);
+                                        const active = !!activeType && activeType === item.type;
+                                        const meta = item.type ? BUILD_META[item.type] : undefined;
+                                        const costText = meta?.cost ?? item.cost;
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                style={{
+                                                    border: `1px solid ${locked ? THEME.chipBorder : section.accent}55`,
+                                                    borderRadius: 12,
+                                                    padding: 10,
+                                                    background: locked ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.9)",
+                                                    opacity: locked ? 0.6 : 1,
+                                                    position: "relative",
+                                                    boxShadow: active ? THEME.accentGlow : THEME.panelShadow
+                                                }}
+                                            >
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                                    <div style={{ fontWeight: 800 }}>{item.title}</div>
+                                                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 8, border: `1px solid ${section.accent}55`, color: THEME.text }}>{item.size}</span>
+                                                </div>
+                                                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>{item.effect}</div>
+                                                <div style={{ fontSize: 11, opacity: 0.65 }}>Upgrade: {item.upgrade}</div>
+                                                {costText && <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>Kosten: {costText}</div>}
+                                                <button
+                                                    disabled={!selectable}
+                                                    onClick={() => item.type && onSelect(item.type)}
+                                                    style={{
+                                                        marginTop: 8,
+                                                        width: "100%",
+                                                        padding: "8px 10px",
+                                                        borderRadius: 10,
+                                                        border: selectable ? `1px solid ${section.accent}` : `1px solid ${THEME.chipBorder}`,
+                                                        background: selectable ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                                                        cursor: selectable ? "pointer" : "not-allowed",
+                                                        fontWeight: 700
+                                                    }}
+                                                >
+                                                    {locked ? "Gesperrt" : active ? "Aktiv" : "Bauen"}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function VillagerMenu({
+    open,
+    st,
+    onAssignHome,
+    onAssignWork,
+    onClose
+}: {
+    open: boolean;
+    st: GameState;
+    onAssignHome: (villagerId: string, buildingId: string | null) => void;
+    onAssignWork: (villagerId: string, buildingId: string | null) => void;
+    onClose: () => void;
+}) {
+    if (!open) return null;
+
+    const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
+    const buildings = Object.values(st.buildings);
+
+    const homeCandidates = buildings.filter(b => b.type === "campfire" || b.type === "townhall" || b.type === "storage");
+    const workCandidates = buildings;
+
+    const labelFor = (b: typeof buildings[number]) => BUILD_META[b.type]?.title ?? b.type;
+
+    return (
+        <div
+            style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+                pointerEvents: "auto"
+            }}
+        >
+            <div
+                style={{
+                    position: "relative",
+                    maxHeight: "82vh",
+                    width: "min(960px, 92vw)",
+                    overflow: "hidden",
+                    background: THEME.panelBg,
+                    borderRadius: 18,
+                    border: `1px solid ${THEME.panelBorder}`,
+                    boxShadow: "0 28px 60px rgba(0,0,0,0.25)",
+                    backdropFilter: "blur(8px)",
+                    pointerEvents: "auto",
+                    display: "flex",
+                    flexDirection: "column"
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${THEME.panelBorder}` }}>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 16 }}>Bewohner</div>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>Zuhause und Arbeitsstaette zuweisen</div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            border: `1px solid ${THEME.chipBorder}`,
+                            background: THEME.chipBg,
+                            borderRadius: 10,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            fontWeight: 700
+                        }}
+                    >
+                        Schliessen
+                    </button>
+                </div>
+
+                <div style={{ padding: 14, overflowY: "auto", display: "grid", gap: 10 }}>
+                    {villagers.map(v => {
+                        const home = v.homeBuildingId ? st.buildings[v.homeBuildingId] : null;
+                        const work = v.assignedBuildingId ? st.buildings[v.assignedBuildingId] : null;
+                        return (
+                            <div key={v.id} style={{ border: `1px solid ${THEME.panelBorder}`, borderRadius: 12, padding: 10, background: "rgba(255,255,255,0.85)", display: "grid", gap: 6 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800 }}>
+                                    <span>{v.name}</span>
+                                    <span style={{ fontSize: 12, opacity: 0.7 }}>Job: {v.job}</span>
+                                </div>
+                                <div style={{ display: "grid", gap: 6, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                                    <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
+                                        <span style={{ opacity: 0.7 }}>Zuhause</span>
+                                        <select
+                                            value={v.homeBuildingId ?? ""}
+                                            onChange={e => onAssignHome(v.id, e.target.value || null)}
+                                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff" }}
+                                        >
+                                            <option value="">Keins</option>
+                                            {homeCandidates.map(b => (
+                                                <option key={b.id} value={b.id}>
+                                                    {labelFor(b)} (#{b.id}) {b.residentIds?.length ? `- ${b.residentIds.length} drin` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {home ? labelFor(home) : "-"}</span>
+                                    </label>
+
+                                    <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
+                                        <span style={{ opacity: 0.7 }}>Arbeitsstaette</span>
+                                        <select
+                                            value={v.assignedBuildingId ?? ""}
+                                            onChange={e => onAssignWork(v.id, e.target.value || null)}
+                                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff" }}
+                                        >
+                                            <option value="">Keine</option>
+                                            {workCandidates.map(b => (
+                                                <option key={b.id} value={b.id}>
+                                                    {labelFor(b)} (#{b.id}) {b.assignedVillagerIds.length ? `- ${b.assignedVillagerIds.length} zugewiesen` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {work ? labelFor(work) : "-"}</span>
+                                    </label>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
     );
 }
 

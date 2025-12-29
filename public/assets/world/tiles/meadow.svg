@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="meadowGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8f6c4"/>
+      <stop offset="1" stop-color="#b6e6a0"/>
+    </linearGradient>
+    <pattern id="flowers" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="4" r="1.1" fill="#ffd7e8" opacity="0.8"/>
+      <circle cx="8" cy="9" r="1.1" fill="#fff7a5" opacity="0.85"/>
+      <circle cx="10" cy="2" r="0.9" fill="#bff0ff" opacity="0.7"/>
+    </pattern>
+    <pattern id="meadowLines" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(-8)">
+      <path d="M0 14 L14 0" stroke="#93d58a" stroke-width="1" opacity="0.3"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#meadowGrad)"/>
+  <rect width="64" height="64" fill="url(#meadowLines)"/>
+  <rect width="64" height="64" fill="url(#flowers)"/>
+</svg>

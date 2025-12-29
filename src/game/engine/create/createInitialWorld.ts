@@ -223,8 +223,8 @@ const ensureLake = (
 };
 
 export function createInitialWorld(seed = Date.now()): World {
-    const width = 256;
-    const height = 128;
+    const width = 128;
+    const height = 64;
 
     const totalTiles = width * height;
     const targetWater = Math.max(Math.round(totalTiles * 0.12), Math.ceil(totalTiles * 0.05)); // tiefer Ozean, >=5%

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7dd8ff"/>
+      <stop offset="1" stop-color="#4ba7e5"/>
+    </linearGradient>
+    <pattern id="waves" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M-2 8 Q2 2 8 8 T18 8" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#g)"/>
+  <rect width="64" height="64" fill="url(#waves)" opacity="0.65"/>
+</svg>

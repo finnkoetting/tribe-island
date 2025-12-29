@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="sandGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8e4b3"/>
+      <stop offset="1" stop-color="#f1d08a"/>
+    </linearGradient>
+    <pattern id="sandDots" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="3" r="0.7" fill="#d2b46c" opacity="0.6"/>
+      <circle cx="6" cy="6" r="0.8" fill="#c49a5a" opacity="0.5"/>
+      <circle cx="4" cy="1" r="0.6" fill="#d2b46c" opacity="0.4"/>
+    </pattern>
+    <path id="dune" d="M0 10 Q12 6 20 10 T40 10 T64 10 V16 H0 Z" fill="#f3da9e" opacity="0.6"/>
+  </defs>
+  <rect width="64" height="64" fill="url(#sandGrad)"/>
+  <rect width="64" height="64" fill="url(#sandDots)"/>
+  <use href="#dune" y="0"/>
+  <use href="#dune" y="18" opacity="0.55"/>
+  <use href="#dune" y="36" opacity="0.45"/>
+</svg>
