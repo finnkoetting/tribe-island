@@ -38,9 +38,22 @@ const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
 
 const VILLAGER_COLOR = "#1f2937";
 const GRID_COLOR = "rgba(255,255,255,0.12)";
+const ANIMAL_STYLES = {
+    sheep: { body: "#f7f3e5", head: "#d8cfb6", outline: "rgba(0,0,0,0.35)" },
+    cow: { body: "#d9c6a8", head: "#b39369", outline: "rgba(0,0,0,0.38)" }
+} as const;
 
 type Camera = { x: number; y: number; z: number };
 type DragState = { active: boolean; startX: number; startY: number; camX: number; camY: number };
+type AmbientAnimal = {
+    id: string;
+    kind: keyof typeof ANIMAL_STYLES;
+    anchor: Vec2;
+    wanderRadius: number;
+    strideMs: number;
+    phaseMs: number;
+    seed: number;
+};
 
 export type WorldCanvasProps = {
     st: GameState;
@@ -75,6 +88,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     }, [st.world.width, st.world.height]);
 
     const canPlaceHover = !!(buildMode && hoverTile && canPlaceAt(st, hoverTile, buildMode));
+    const meadowAnimals = useMemo(() => createMeadowAnimals(st.world, st.seed), [st.seed, st.world]);
 
     const minZoomForViewport = useCallback(
         (vw: number, vh: number) => Math.max(vw / worldPx.w, vh / worldPx.h) * 1.05,
@@ -210,12 +224,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         drawTiles(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY);
         drawGrid(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY);
         drawBuildings(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
         ctx.restore();
-    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA]);
+    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, meadowAnimals]);
 
     const screenToWorld = (clientX: number, clientY: number) => {
         const wrap = wrapRef.current;
@@ -430,6 +445,138 @@ function drawTileDiamond(ctx: CanvasRenderingContext2D, sx: number, sy: number, 
     grad.addColorStop(1, shadow);
     ctx.fillStyle = grad;
     ctx.fill();
+}
+
+function drawAnimals(
+    ctx: CanvasRenderingContext2D,
+    animals: AmbientAnimal[],
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
+    if (!animals.length) return;
+
+    const timeMs = st.nowMs;
+
+    for (const animal of animals) {
+        const pos = animalPosition(animal, timeMs, st.world);
+        const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+        const cx = sx + HALF_W;
+        const cy = sy + HALF_H * 0.6;
+
+        const style = ANIMAL_STYLES[animal.kind];
+        const bodyR = animal.kind === "cow" ? 5 : 4;
+        const bodySquish = animal.kind === "cow" ? 0.76 : 0.7;
+
+        ctx.fillStyle = style.body;
+        ctx.strokeStyle = style.outline;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, bodyR, bodyR * bodySquish, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = style.head;
+        ctx.beginPath();
+        ctx.ellipse(cx + bodyR * 0.65, cy - bodyR * 0.15, bodyR * 0.45, bodyR * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function animalPosition(animal: AmbientAnimal, timeMs: number, world: GameState["world"]): Vec2 {
+    const stride = animal.strideMs;
+    const shifted = timeMs + animal.phaseMs;
+    const segment = Math.floor(shifted / stride);
+    const t = (shifted % stride) / stride;
+
+    const from = sampleAnimalWaypoint(animal, segment, world);
+    const to = sampleAnimalWaypoint(animal, segment + 1, world);
+
+    const eased = 0.5 - 0.5 * Math.cos(Math.min(1, Math.max(0, t)) * Math.PI);
+    return {
+        x: from.x + (to.x - from.x) * eased,
+        y: from.y + (to.y - from.y) * eased
+    };
+}
+
+function sampleAnimalWaypoint(animal: AmbientAnimal, segment: number, world: GameState["world"]): Vec2 {
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const angle = hashFloat(animal.seed + segment * 37, attempt, 11) * Math.PI * 2;
+        const radius = 0.6 + hashFloat(animal.seed + segment * 53, attempt, 29) * animal.wanderRadius;
+        const dx = Math.cos(angle) * radius;
+        const dy = Math.sin(angle) * radius * 0.85;
+        const candidate = { x: animal.anchor.x + dx, y: animal.anchor.y + dy };
+        if (isMeadowTile(world, candidate)) return candidate;
+    }
+    return animal.anchor;
+}
+
+function isMeadowTile(world: GameState["world"], pos: Vec2): boolean {
+    const x = Math.floor(pos.x);
+    const y = Math.floor(pos.y);
+    if (x < 0 || y < 0 || x >= world.width || y >= world.height) return false;
+    const tile = world.tiles[y * world.width + x];
+    return tile?.id === "meadow";
+}
+
+function hashFloat(seed: number, a: number, b: number): number {
+    let t = seed ^ (a * 374761393) ^ (b * 668265263);
+    t = (t ^ (t >> 13)) * 1274126177;
+    t ^= t >> 16;
+    return ((t >>> 0) % 4294967296) / 4294967295;
+}
+
+function mulberry32(seed: number) {
+    let t = seed >>> 0;
+    return () => {
+        t += 0x6d2b79f5;
+        let n = t;
+        n = Math.imul(n ^ (n >>> 15), 1 | n);
+        n ^= n + Math.imul(n ^ (n >>> 7), 61 | n);
+        return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function createMeadowAnimals(world: GameState["world"], seed: number): AmbientAnimal[] {
+    const meadowTiles: Vec2[] = [];
+
+    for (let y = 0; y < world.height; y++) {
+        for (let x = 0; x < world.width; x++) {
+            const tile = world.tiles[y * world.width + x];
+            if (tile?.id === "meadow") meadowTiles.push({ x, y });
+        }
+    }
+
+    if (!meadowTiles.length) return [];
+
+    const rng = mulberry32(seed ^ 0x51c0ffee);
+    const desired = Math.max(6, Math.min(20, Math.floor(meadowTiles.length / 90)));
+    const animals: AmbientAnimal[] = [];
+    let attempts = 0;
+
+    while (animals.length < desired && meadowTiles.length && attempts < meadowTiles.length * 3) {
+        attempts++;
+        const pickIdx = Math.floor(rng() * meadowTiles.length);
+        const tile = meadowTiles.splice(pickIdx, 1)[0];
+
+        const anchor = { x: tile.x + 0.2 + rng() * 0.6, y: tile.y + 0.2 + rng() * 0.6 };
+        const tooClose = animals.some((a) => distanceSq(a.anchor, anchor) < 3.5);
+        if (tooClose) continue;
+
+        animals.push({
+            id: `animal_${animals.length}_${tile.x}_${tile.y}`,
+            kind: rng() < 0.58 ? "sheep" : "cow",
+            anchor,
+            wanderRadius: 1.4 + rng() * 2.4,
+            strideMs: 5200 + rng() * 4300,
+            phaseMs: Math.floor(rng() * 5000),
+            seed: Math.floor(rng() * 0xffffffff)
+        });
+    }
+
+    return animals;
 }
 
 function drawTiles(
