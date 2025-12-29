@@ -6,13 +6,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import { getBuildingSize, getFootprintTopLeft } from "../../src/game/domains/buildings/model/buildingSizes";
 import type { BuildingTypeId, GameState, Vec2, WorldTileId } from "../../src/game/types/GameState";
-import battleTile0037 from "../../src/ui/game/textures/battle/tile_0037.png";
-import townTile0000 from "../../src/ui/game/textures/town/tile_0000.png";
-import townTile0001 from "../../src/ui/game/textures/town/tile_0001.png";
-import townTile0002 from "../../src/ui/game/textures/town/tile_0002.png";
-import townTile0025 from "../../src/ui/game/textures/town/tile_0025.png";
-import treeTextureFile from "../../src/ui/game/textures/tree.png";
-import townTile0109 from "../../src/ui/game/textures/town/tile_0109.png";
+import desertTile1 from "../../src/ui/game/textures/terrain/desert/1.png";
+import desertTile2 from "../../src/ui/game/textures/terrain/desert/2.png";
+import desertTile3 from "../../src/ui/game/textures/terrain/desert/3.png";
+import forestTile1 from "../../src/ui/game/textures/terrain/forest/1.png";
+import forestTile2 from "../../src/ui/game/textures/terrain/forest/2.png";
+import forestTile3 from "../../src/ui/game/textures/terrain/forest/3.png";
+import meadowTile1 from "../../src/ui/game/textures/terrain/meadow/1.png";
+import meadowTile2 from "../../src/ui/game/textures/terrain/meadow/2.png";
+import meadowTile3 from "../../src/ui/game/textures/terrain/meadow/3.png";
+import mountainTile1 from "../../src/ui/game/textures/terrain/mountain/1.png";
+import mountainTile2 from "../../src/ui/game/textures/terrain/mountain/2.png";
+import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
+import stoneTextureFile from "../../src/ui/game/textures/objects/stone.png";
+import berryBushTextureFile from "../../src/ui/game/textures/objects/berrybush.png";
+import mushroomTextureFile from "../../src/ui/game/textures/objects/mushroom.png";
+import treeTextureFile from "../../src/ui/game/textures/objects/tree.png";
 
 const TILE_W = 64;
 const TILE_H = 32;
@@ -36,15 +45,15 @@ const TILE_COLORS: Record<WorldTileId, string> = {
 };
 
 const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
-    water: [battleTile0037],
-    sand: [townTile0025],
-    rock: [townTile0109],
-    mountain: [townTile0109],
-    dirt: [townTile0025],
-    grass: [townTile0000, townTile0001, townTile0002],
-    forest: [townTile0000, townTile0001, townTile0002],
-    meadow: [townTile0000, townTile0001, townTile0002],
-    desert: [townTile0025]
+    water: [waterTile1],
+    sand: [desertTile1, desertTile2, desertTile3],
+    rock: [mountainTile1, mountainTile2],
+    mountain: [mountainTile1, mountainTile2],
+    dirt: [meadowTile1, meadowTile2, meadowTile3],
+    grass: [meadowTile1, meadowTile2, meadowTile3],
+    forest: [forestTile1, forestTile2, forestTile3],
+    meadow: [meadowTile1, meadowTile2, meadowTile3],
+    desert: [desertTile1, desertTile2, desertTile3]
 };
 
 const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
@@ -55,7 +64,9 @@ const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
     townhall: "#3a5f8f",
     road: "#8d7355",
     rock: "#7b6858",
-    tree: "#3a6f3d"
+    tree: "#3a6f3d",
+    berry_bush: "#2f7f3a",
+    mushroom: "#b0514b"
 };
 
 const VILLAGER_COLOR = "#1f2937";
@@ -99,8 +110,15 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [fps, setFps] = useState(0);
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTexture, setTreeTexture] = useState<ImageBitmap | null>(null);
+    const [rockTexture, setRockTexture] = useState<ImageBitmap | null>(null);
+    const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
+    const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
     const fpsFrames = useRef(0);
-    const fpsLast = useRef(typeof performance !== "undefined" ? performance.now() : 0);
+    const fpsLast = useRef(0);
+
+    useEffect(() => {
+        if (typeof performance !== "undefined") fpsLast.current = performance.now();
+    }, []);
 
     const angleDeg = 0;
 
@@ -152,6 +170,42 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 if (!cancelled) setTreeTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load tree texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(stoneTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setRockTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load rock texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(berryBushTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setBerryBushTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load berry bush texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(mushroomTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setMushroomTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load mushroom texture", err));
         return () => {
             cancelled = true;
         };
@@ -300,7 +354,18 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         ctx.scale(cam.z, cam.z);
 
         drawTiles(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY, tileTextures);
-        drawBuildings(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, treeTexture);
+        drawBuildings(
+            ctx,
+            st,
+            worldPx.originX,
+            worldPx.originY,
+            worldPx.cosA,
+            worldPx.sinA,
+            treeTexture,
+            rockTexture,
+            berryBushTexture,
+            mushroomTexture
+        );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
@@ -315,9 +380,25 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             const nextFps = elapsed > 0 ? (fpsFrames.current * 1000) / elapsed : 0;
             fpsFrames.current = 0;
             fpsLast.current = now;
-            setFps(nextFps);
+            requestAnimationFrame(() => setFps(nextFps));
         }
-    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, meadowAnimals, tileTextures, treeTexture]);
+    }, [
+        st,
+        hoverTile,
+        buildMode,
+        canPlaceHover,
+        cam,
+        worldPx.originX,
+        worldPx.originY,
+        worldPx.cosA,
+        worldPx.sinA,
+        meadowAnimals,
+        tileTextures,
+        treeTexture,
+        rockTexture,
+        berryBushTexture,
+        mushroomTexture
+    ]);
 
     const screenToWorld = (clientX: number, clientY: number) => {
         const wrap = wrapRef.current;
@@ -789,7 +870,13 @@ function drawTiles(
                 ctx.lineTo(dx + HALF_W, dy + TILE_H);
                 ctx.closePath();
                 ctx.clip();
-                ctx.drawImage(tex, dx, dy, TILE_W, TILE_H);
+
+                // Map square texture onto the diamond without cropping by using an affine transform
+                // that sends square corners to the diamond corners.
+                ctx.translate(dx + HALF_W, dy + HALF_H);
+                ctx.transform(0.5, -0.25, 0.5, 0.25, 0, 0);
+                ctx.drawImage(tex, -HALF_W, -HALF_W, TILE_W, TILE_W);
+
                 ctx.restore();
                 continue;
             }
@@ -806,7 +893,10 @@ function drawBuildings(
     originY: number,
     cosA: number,
     sinA: number,
-    treeTexture: ImageBitmap | null
+    treeTexture: ImageBitmap | null,
+    rockTexture: ImageBitmap | null,
+    berryBushTexture: ImageBitmap | null,
+    mushroomTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
@@ -820,12 +910,22 @@ function drawBuildings(
         }
 
         if (b.type === "rock") {
-            drawRockTile(ctx, b.pos, originX, originY, cosA, sinA);
+            drawRockTile(ctx, b.pos, originX, originY, cosA, sinA, rockTexture);
             continue;
         }
 
         if (b.type === "tree") {
             drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA, treeTexture);
+            continue;
+        }
+
+        if (b.type === "berry_bush") {
+            drawBushTile(ctx, b.pos, originX, originY, cosA, sinA, berryBushTexture);
+            continue;
+        }
+
+        if (b.type === "mushroom") {
+            drawMushroomTile(ctx, b.pos, originX, originY, cosA, sinA, mushroomTexture);
             continue;
         }
 
@@ -962,8 +1062,16 @@ function drawRockTile(
     originX: number,
     originY: number,
     cosA: number,
-    sinA: number
+    sinA: number,
+    rockTexture: ImageBitmap | null
 ) {
+    const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+
+    if (rockTexture) {
+        ctx.drawImage(rockTexture, sx, sy, TILE_W, TILE_H);
+        return;
+    }
+
     const r = 0.24;
     const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
 
@@ -1011,6 +1119,78 @@ function drawTreeTile(
 
     ctx.fillStyle = BUILDING_COLORS.tree || "#3a6f3d";
     ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(pN.sx, pN.sy);
+    ctx.lineTo(pE.sx, pE.sy);
+    ctx.lineTo(pS.sx, pS.sy);
+    ctx.lineTo(pW.sx, pW.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawBushTile(
+    ctx: CanvasRenderingContext2D,
+    pos: Vec2,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number,
+    bushTexture: ImageBitmap | null
+) {
+    const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+    if (bushTexture) {
+        ctx.drawImage(bushTexture, sx, sy, TILE_W, TILE_H);
+        return;
+    }
+
+    const r = 0.28;
+    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
+    const pN = project(0, -r * 1.1);
+    const pE = project(r * 0.9, 0);
+    const pS = project(0, r * 1.05);
+    const pW = project(-r * 0.9, 0);
+
+    ctx.fillStyle = BUILDING_COLORS.tree || "#2f7f3a";
+    ctx.strokeStyle = "rgba(0,0,0,0.28)";
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(pN.sx, pN.sy);
+    ctx.lineTo(pE.sx, pE.sy);
+    ctx.lineTo(pS.sx, pS.sy);
+    ctx.lineTo(pW.sx, pW.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawMushroomTile(
+    ctx: CanvasRenderingContext2D,
+    pos: Vec2,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number,
+    mushroomTexture: ImageBitmap | null
+) {
+    const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+    if (mushroomTexture) {
+        ctx.drawImage(mushroomTexture, sx, sy, TILE_W, TILE_H);
+        return;
+    }
+
+    const r = 0.22;
+    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
+    const pN = project(0, -r);
+    const pE = project(r, 0);
+    const pS = project(0, r * 1.1);
+    const pW = project(-r, 0);
+
+    ctx.fillStyle = "#b0514b";
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
     ctx.lineWidth = 1;
 
     ctx.beginPath();

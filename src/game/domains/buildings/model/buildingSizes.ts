@@ -10,7 +10,9 @@ const SIZES: Record<BuildingTypeId, Footprint> = {
     watchpost: { w: 2, h: 2 },
     road: { w: 1, h: 1 },
     rock: { w: 1, h: 1 },
-    tree: { w: 1, h: 1 }
+    tree: { w: 1, h: 1 },
+    berry_bush: { w: 1, h: 1 },
+    mushroom: { w: 1, h: 1 }
 };
 
 export function getBuildingSize(type: BuildingTypeId): Footprint {

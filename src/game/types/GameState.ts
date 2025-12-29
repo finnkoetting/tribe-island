@@ -54,6 +54,8 @@ export type World = {
 export type SpawnerState = {
     rocksNextDay: number;
     treesNextDay: number;
+    berriesNextDay: number;
+    mushroomsNextDay: number;
 };
 
 /* =======================
@@ -124,7 +126,9 @@ export type BuildingTypeId =
     | "watchpost"
     | "road"
     | "rock"
-    | "tree";
+    | "tree"
+    | "berry_bush"
+    | "mushroom";
 
 export type TaskKind = "build" | "produce" | "research" | "none";
 

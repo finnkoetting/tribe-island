@@ -3,6 +3,8 @@ import { createInitialWorld } from "./createInitialWorld";
 import { createInitialVillagers } from "./createInitialVillagers";
 import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
+import { spawnBerryBushes } from "../../domains/world/rules/spawnBerryBushes";
+import { spawnMushrooms } from "../../domains/world/rules/spawnMushrooms";
 
 const MS_PER_DAY = 30 * 60 * 1000;
 
@@ -25,6 +27,8 @@ export function createGame(seed = Date.now()): GameState {
 
     const rng = mulberry32(seed ^ 0x9e3779b9);
     const initialRockCount = 5 + randInt(rng, 0, 1);
+    const initialBerryCount = 10 + randInt(rng, 0, 4);
+    const initialMushroomCount = 6 + randInt(rng, 0, 3);
 
     const base: GameState = {
         version: 1,
@@ -83,7 +87,9 @@ export function createGame(seed = Date.now()): GameState {
 
         spawners: {
             rocksNextDay: 0,
-            treesNextDay: 0
+            treesNextDay: 0,
+            berriesNextDay: 0,
+            mushroomsNextDay: 0
         },
 
         flags: {
@@ -94,19 +100,23 @@ export function createGame(seed = Date.now()): GameState {
     };
 
     let next = spawnDesertRocks(base, initialRockCount, rng);
-
     const forestTreeTarget = forestTreeShortage(next, FOREST_TREE_FILL_RATIO);
     next = spawnForestTrees(next, forestTreeTarget, rng, { targetFillRatio: FOREST_TREE_FILL_RATIO });
+    next = spawnBerryBushes(next, initialBerryCount, rng);
+    next = spawnMushrooms(next, initialMushroomCount, rng);
+
     const nextRockDay = base.time.day + randInt(rng, 1, 2);
     const nextTreeDay = base.time.day + randInt(rng, 1, 2);
+    const nextBerryDay = base.time.day + randInt(rng, 1, 2);
+    const nextMushroomDay = base.time.day + randInt(rng, 1, 2);
 
-    next = {
+    return {
         ...next,
         spawners: {
             rocksNextDay: nextRockDay,
-            treesNextDay: nextTreeDay
+            treesNextDay: nextTreeDay,
+            berriesNextDay: nextBerryDay,
+            mushroomsNextDay: nextMushroomDay
         }
     };
-
-    return next;
 }

@@ -1,6 +1,8 @@
 import { GameState, Alert, AlertId, Villager } from "../../types/GameState";
 import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
+import { spawnBerryBushes } from "../../domains/world/rules/spawnBerryBushes";
+import { spawnMushrooms } from "../../domains/world/rules/spawnMushrooms";
 
 export function runPhaseSystems(st: GameState): GameState {
     switch (st.time.phase) {
@@ -33,6 +35,8 @@ function runMorning(st: GameState): GameState {
 
     next = spawnRocksIfDue(next);
     next = spawnTreesIfDue(next);
+    next = spawnBerriesIfDue(next);
+    next = spawnMushroomsIfDue(next);
 
     return refreshAlerts(next);
 }
@@ -158,6 +162,36 @@ function spawnTreesIfDue(st: GameState): GameState {
     return {
         ...after,
         spawners: { ...after.spawners, treesNextDay: schedule }
+    };
+}
+
+function spawnBerriesIfDue(st: GameState): GameState {
+    const nextDay = st.spawners.berriesNextDay;
+    if (nextDay <= 0 || st.time.day < nextDay) return st;
+
+    const rng = mulberry32((st.seed ^ 0xc2b2ae35) ^ (st.time.day * 1597334677));
+    const spawnCount = randInt(rng, 2, 4);
+    const after = spawnBerryBushes(st, spawnCount, rng);
+    const schedule = st.time.day + randInt(rng, 1, 2); // 24-48 Stunden
+
+    return {
+        ...after,
+        spawners: { ...after.spawners, berriesNextDay: schedule }
+    };
+}
+
+function spawnMushroomsIfDue(st: GameState): GameState {
+    const nextDay = st.spawners.mushroomsNextDay;
+    if (nextDay <= 0 || st.time.day < nextDay) return st;
+
+    const rng = mulberry32((st.seed ^ 0x27d4eb2f) ^ (st.time.day * 3266489917));
+    const spawnCount = randInt(rng, 1, 3);
+    const after = spawnMushrooms(st, spawnCount, rng);
+    const schedule = st.time.day + randInt(rng, 1, 2); // 24-48 Stunden
+
+    return {
+        ...after,
+        spawners: { ...after.spawners, mushroomsNextDay: schedule }
     };
 }
 

@@ -68,12 +68,6 @@ const fbm = (seed: number, x: number, y: number, octaves: number, lacunarity: nu
     return sum / norm;
 };
 
-const pickCoastSide = (seed: number): CoastSide => {
-    const rng = mulberry32(seed ^ 0x9e3779b9);
-    const sides: CoastSide[] = ["north", "east", "south", "west"];
-    return sides[Math.floor(rng() * sides.length)];
-};
-
 const distToCoast = (side: CoastSide, x: number, y: number, w: number, h: number) => {
     switch (side) {
         case "north":
@@ -239,7 +233,7 @@ export function createInitialWorld(seed = Date.now()): World {
     const coastSide: CoastSide = "north";
     const rng = mulberry32(seed + 1337);
 
-    const coastDepthBase = coastSide === "east" || coastSide === "west" ? targetOceanTotal / height : targetOceanTotal / width;
+    const coastDepthBase = targetOceanTotal / width;
     const coastDepth = Math.max(6, Math.min(40, Math.round(coastDepthBase * lerp(0.9, 1.1, rng()))));
     const coastWobble = 4 + Math.floor(rng() * 5);
     const coastWarpStrength = 9;

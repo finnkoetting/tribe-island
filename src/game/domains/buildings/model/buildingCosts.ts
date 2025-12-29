@@ -10,7 +10,9 @@ export const BUILDING_COSTS: Record<BuildingTypeId, BuildingCost> = {
     watchpost: { wood: 12, stone: 4 },
     road: { wood: 1 },
     rock: {},
-    tree: {}
+    tree: {},
+    berry_bush: {},
+    mushroom: {}
 };
 
 const COST_ORDER: ResourceId[] = ["wood", "berries", "fish", "stone", "fibers", "planks", "medicine", "knowledge", "gold"];
