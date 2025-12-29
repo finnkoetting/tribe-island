@@ -32,7 +32,8 @@ const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
     watchpost: "#c45c7b",
     townhall: "#3a5f8f",
     road: "#8d7355",
-    rock: "#7b6858"
+    rock: "#7b6858",
+    tree: "#3a6f3d"
 };
 
 const VILLAGER_COLOR = "#1f2937";
@@ -238,11 +239,34 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const gx = (ix + iy) / 2;
         const gy = (iy - ix) / 2;
 
-        const tx = Math.floor(gx);
-        const ty = Math.floor(gy);
+        const baseX = Math.floor(gx);
+        const baseY = Math.floor(gy);
 
-        if (tx < 0 || ty < 0 || tx >= st.world.width || ty >= st.world.height) return null;
-        return { x: tx, y: ty };
+        const candidates: Vec2[] = [
+            { x: baseX, y: baseY },
+            { x: baseX + 1, y: baseY },
+            { x: baseX - 1, y: baseY },
+            { x: baseX, y: baseY + 1 },
+            { x: baseX, y: baseY - 1 },
+            { x: baseX + 1, y: baseY - 1 },
+            { x: baseX - 1, y: baseY + 1 },
+            { x: baseX + 1, y: baseY + 1 },
+            { x: baseX - 1, y: baseY - 1 }
+        ];
+
+        for (const c of candidates) {
+            if (c.x < 0 || c.y < 0 || c.x >= st.world.width || c.y >= st.world.height) continue;
+
+            const { sx, sy } = tileToScreen(c.x, c.y, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+            const dx = p.wx - (sx + HALF_W);
+            const dy = p.wy - (sy + HALF_H);
+
+            // Diamond hit-test: inside if normalized manhattan distance fits.
+            const inside = Math.abs(dx) / HALF_W + Math.abs(dy) / HALF_H <= 1;
+            if (inside) return c;
+        }
+
+        return null;
     };
 
     const startPan = (clientX: number, clientY: number) => {
@@ -482,6 +506,11 @@ function drawBuildings(ctx: CanvasRenderingContext2D, st: GameState, originX: nu
             continue;
         }
 
+        if (b.type === "tree") {
+            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA);
+            continue;
+        }
+
         const size = getBuildingSize(b.type);
         const color = BUILDING_COLORS[b.type] || "#2e2e2e";
 
@@ -618,7 +647,7 @@ function drawRockTile(
     sinA: number
 ) {
     const r = 0.24;
-    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx, pos.y + ly, originX, originY, cosA, sinA);
+    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
 
     const pN = project(0, -r);
     const pE = project(r, 0);
@@ -626,6 +655,36 @@ function drawRockTile(
     const pW = project(-r, 0);
 
     ctx.fillStyle = BUILDING_COLORS.rock || "#7b6858";
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(pN.sx, pN.sy);
+    ctx.lineTo(pE.sx, pE.sy);
+    ctx.lineTo(pS.sx, pS.sy);
+    ctx.lineTo(pW.sx, pW.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawTreeTile(
+    ctx: CanvasRenderingContext2D,
+    pos: Vec2,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
+    const r = 0.26;
+    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
+
+    const pN = project(0, -r * 1.2);
+    const pE = project(r * 0.9, 0);
+    const pS = project(0, r * 1.1);
+    const pW = project(-r * 0.9, 0);
+
+    ctx.fillStyle = BUILDING_COLORS.tree || "#3a6f3d";
     ctx.strokeStyle = "rgba(0,0,0,0.35)";
     ctx.lineWidth = 1;
 
