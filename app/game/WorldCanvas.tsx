@@ -16,6 +16,7 @@ const TILE_COLORS: Record<WorldTileId, string> = {
     water: "#6cd4ff",
     sand: "#f4d57b",
     rock: "#a2a8b5",
+    mountain: "#7a6d86",
     dirt: "#d7a46a",
     grass: "#9adf7f",
     forest: "#63a66b",
@@ -30,7 +31,8 @@ const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
     storage: "#5c6ac4",
     watchpost: "#c45c7b",
     townhall: "#3a5f8f",
-    road: "#8d7355"
+    road: "#8d7355",
+    rock: "#7b6858"
 };
 
 const VILLAGER_COLOR = "#1f2937";
@@ -475,6 +477,11 @@ function drawBuildings(ctx: CanvasRenderingContext2D, st: GameState, originX: nu
             continue;
         }
 
+        if (b.type === "rock") {
+            drawRockTile(ctx, b.pos, originX, originY, cosA, sinA);
+            continue;
+        }
+
         const size = getBuildingSize(b.type);
         const color = BUILDING_COLORS[b.type] || "#2e2e2e";
 
@@ -602,24 +609,144 @@ function drawRoadTile(
     ctx.stroke();
 }
 
+function drawRockTile(
+    ctx: CanvasRenderingContext2D,
+    pos: Vec2,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
+    const r = 0.24;
+    const project = (lx: number, ly: number) => tileToScreen(pos.x + lx, pos.y + ly, originX, originY, cosA, sinA);
+
+    const pN = project(0, -r);
+    const pE = project(r, 0);
+    const pS = project(0, r);
+    const pW = project(-r, 0);
+
+    ctx.fillStyle = BUILDING_COLORS.rock || "#7b6858";
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(pN.sx, pN.sy);
+    ctx.lineTo(pE.sx, pE.sy);
+    ctx.lineTo(pS.sx, pS.sy);
+    ctx.lineTo(pW.sx, pW.sy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
+
+
+type CampfireAnchor = { pos: Vec2; key: string };
+
+function distanceSq(a: Vec2, b: Vec2): number {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
+
+function clamp01(n: number): number {
+    if (n < 0) return 0;
+    if (n > 1) return 1;
+    return n;
+}
+
+function getCampfires(st: GameState): CampfireAnchor[] {
+    return Object.values(st.buildings)
+        .filter((b) => b.type === "campfire")
+        .map((b) => {
+            const size = getBuildingSize(b.type);
+            const cx = b.pos.x + Math.floor(size.w / 2);
+            const cy = b.pos.y + Math.floor(size.h / 2);
+            return { pos: { x: cx, y: cy }, key: `${cx},${cy}` } as CampfireAnchor;
+        });
+}
+
+function nearestCampfire(campfires: CampfireAnchor[], origin: Vec2): CampfireAnchor | null {
+    if (!campfires.length) return null;
+    let best = campfires[0];
+    let bestDist = distanceSq(origin, best.pos);
+    for (let i = 1; i < campfires.length; i++) {
+        const d = distanceSq(origin, campfires[i].pos);
+        if (d < bestDist) {
+            best = campfires[i];
+            bestDist = d;
+        }
+    }
+    return best;
+}
 
 function drawVillagers(ctx: CanvasRenderingContext2D, st: GameState, originX: number, originY: number, cosA: number, sinA: number) {
     const villagers = Object.values(st.villagers).filter((v) => v.state === "alive");
     if (!villagers.length) return;
 
-    for (const v of villagers) {
-        const { sx, sy } = tileToScreen(v.pos.x, v.pos.y, originX, originY, cosA, sinA);
-        const cx = sx + HALF_W;
-        const cy = sy + HALF_H * 0.6;
+    const campfires = getCampfires(st);
+    const assignments = villagers.map(v => ({ v, camp: nearestCampfire(campfires, v.pos) }));
 
-        ctx.fillStyle = VILLAGER_COLOR;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-        ctx.fill();
+    const grouped: Record<string, { camp: CampfireAnchor | null; villagers: typeof assignments }> = {} as Record<
+        string,
+        { camp: CampfireAnchor | null; villagers: typeof assignments }
+    >;
 
-        ctx.strokeStyle = "rgba(255,255,255,0.7)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+    for (const entry of assignments) {
+        const key = entry.camp ? entry.camp.key : "__none__";
+        if (!grouped[key]) grouped[key] = { camp: entry.camp, villagers: [] };
+        grouped[key].villagers.push(entry);
+    }
+
+    const timeMs = st.nowMs;
+    const orbitJoinRadius = 1.2;
+    const orbitBaseRadius = 0.45;
+
+    for (const group of Object.values(grouped)) {
+        const { camp, villagers: groupVillagers } = group;
+        const count = groupVillagers.length;
+
+        groupVillagers.forEach((entry, idx) => {
+            const v = entry.v;
+            let gx = v.pos.x;
+            let gy = v.pos.y;
+
+            if (camp) {
+                const dist = Math.sqrt(distanceSq(v.pos, camp.pos));
+
+                if (dist <= orbitJoinRadius) {
+                    const wobble = 0.05 * Math.sin(timeMs / 900 + idx * 0.7);
+                    const radius = orbitBaseRadius + wobble;
+                    const spin = timeMs / 6000;
+                    const angle = (idx / count) * Math.PI * 2 + spin;
+
+                    const targetX = camp.pos.x + Math.cos(angle) * radius;
+                    const targetY = camp.pos.y + Math.sin(angle) * radius;
+                    const t = clamp01((orbitJoinRadius - dist) / orbitJoinRadius);
+
+                    gx = gx * (1 - t) + targetX * t;
+                    gy = gy * (1 - t) + targetY * t;
+                } else {
+                    const idle = 0.04 * Math.sin(timeMs / 1100 + idx);
+                    gy = gy + idle;
+                }
+            } else {
+                const idle = 0.08 * Math.sin(timeMs / 1000 + idx);
+                gy = gy + idle;
+            }
+
+            const { sx, sy } = tileToScreen(gx, gy, originX, originY, cosA, sinA);
+            const cx = sx + HALF_W;
+            const cy = sy + HALF_H * 0.6;
+
+            ctx.fillStyle = VILLAGER_COLOR;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(255,255,255,0.7)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
     }
 }
 

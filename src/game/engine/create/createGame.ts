@@ -1,14 +1,31 @@
 import { GameState, GameSpeed } from "../../types/GameState";
 import { createInitialWorld } from "./createInitialWorld";
 import { createInitialVillagers } from "./createInitialVillagers";
+import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 
 const MS_PER_DAY = 30 * 60 * 1000;
+
+const mulberry32 = (seed: number) => {
+    let t = seed >>> 0;
+    return () => {
+        t += 0x6d2b79f5;
+        let n = t;
+        n = Math.imul(n ^ (n >>> 15), 1 | n);
+        n ^= n + Math.imul(n ^ (n >>> 7), 61 | n);
+        return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
+    };
+};
+
+const randInt = (rng: () => number, min: number, max: number) => Math.floor(rng() * (max - min + 1)) + min;
 
 export function createGame(seed = Date.now()): GameState {
     const world = createInitialWorld(seed);
     const villagers = createInitialVillagers();
 
-    return {
+    const rng = mulberry32(seed ^ 0x9e3779b9);
+    const initialRockCount = 5 + randInt(rng, 0, 1);
+
+    const base: GameState = {
         version: 1,
         seed,
         nowMs: 0,
@@ -63,10 +80,26 @@ export function createGame(seed = Date.now()): GameState {
             ghostPos: null
         },
 
+        spawners: {
+            rocksNextDay: 0
+        },
+
         flags: {
             paused: false,
             working: true,
             sleeping: false
         }
     };
+
+    let next = spawnDesertRocks(base, initialRockCount, rng);
+    const nextRockDay = base.time.day + randInt(rng, 1, 2);
+
+    next = {
+        ...next,
+        spawners: {
+            rocksNextDay: nextRockDay
+        }
+    };
+
+    return next;
 }

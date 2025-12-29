@@ -33,6 +33,7 @@ export type WorldTileId =
     | "water"
     | "sand"
     | "rock"
+    | "mountain"
     | "dirt"
     | "grass"
     | "forest"
@@ -49,6 +50,10 @@ export type World = {
     height: number;
     tiles: WorldTile[];
     waterLevel: number;
+};
+
+export type SpawnerState = {
+    rocksNextDay: number;
 };
 
 /* =======================
@@ -117,7 +122,8 @@ export type BuildingTypeId =
     | "campfire"
     | "storage"
     | "watchpost"
-    | "road";
+    | "road"
+    | "rock";
 
 export type TaskKind = "build" | "produce" | "research" | "none";
 
@@ -231,6 +237,8 @@ export type GameState = {
 
     selection: Selection;
     placement: Placement;
+
+    spawners: SpawnerState;
 
     flags: {
         paused: boolean;

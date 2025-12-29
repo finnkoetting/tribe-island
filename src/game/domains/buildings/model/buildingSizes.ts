@@ -8,7 +8,8 @@ const SIZES: Record<BuildingTypeId, Footprint> = {
     gather_hut: { w: 2, h: 2 },
     storage: { w: 2, h: 2 },
     watchpost: { w: 2, h: 2 },
-    road: { w: 1, h: 1 }
+    road: { w: 1, h: 1 },
+    rock: { w: 1, h: 1 }
 };
 
 export function getBuildingSize(type: BuildingTypeId): Footprint {

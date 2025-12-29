@@ -18,7 +18,7 @@ export function canPlaceAt(st: GameState, pos: Vec2, type?: BuildingTypeId): boo
             const i = y * st.world.width + x;
             const tile = st.world.tiles[i];
             if (!tile) return false;
-            if (tile.id === "water") return false;
+            if (tile.id === "water" || tile.id === "mountain") return false;
 
             // Check collision with existing building footprints.
             for (const b of Object.values(st.buildings)) {

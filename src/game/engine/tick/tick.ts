@@ -4,6 +4,7 @@ import { advancePhase } from "./advancePhase";
 import { runPhaseSystems } from "./runPhaseSystems";
 import { progressBuildingTasks } from "../../domains/buildings/rules/progressTask";
 import { getClockMinutes, runClock } from "./runClock";
+import { updateVillagerLocations } from "../../domains/villagers/rules/updateVillagerLocations";
 import { evaluateTutorialQuests } from "../quests/evaluateTutorial";
 
 export function tick(st: GameState, dtMs: number): GameState {
@@ -16,6 +17,8 @@ export function tick(st: GameState, dtMs: number): GameState {
 
     const nextClock = getClockMinutes(next);
     next = runClock(next, prevClock, nextClock);
+
+    next = updateVillagerLocations(next, effectiveDt);
 
     if (effectiveDt > 0 && next.flags.working) {
         next = progressBuildingTasks(next, effectiveDt);

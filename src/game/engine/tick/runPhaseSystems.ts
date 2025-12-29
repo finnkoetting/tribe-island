@@ -1,4 +1,5 @@
 import { GameState, Alert, AlertId, Villager } from "../../types/GameState";
+import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 
 export function runPhaseSystems(st: GameState): GameState {
     switch (st.time.phase) {
@@ -20,7 +21,7 @@ export function runPhaseSystems(st: GameState): GameState {
 }
 
 function runMorning(st: GameState): GameState {
-    const next: GameState = {
+    let next: GameState = {
         ...st,
         events: st.events.concat({
             id: "day_started",
@@ -28,6 +29,8 @@ function runMorning(st: GameState): GameState {
             payload: { day: st.time.day, reason: "morning_phase" }
         })
     };
+
+    next = spawnRocksIfDue(next);
 
     return refreshAlerts(next);
 }
@@ -111,6 +114,33 @@ function runNight(st: GameState): GameState {
         ...st,
         villagers: nextVillagers
     });
+}
+
+const mulberry32 = (seed: number) => {
+    let t = seed >>> 0;
+    return () => {
+        t += 0x6d2b79f5;
+        let n = t;
+        n = Math.imul(n ^ (n >>> 15), 1 | n);
+        n ^= n + Math.imul(n ^ (n >>> 7), 61 | n);
+        return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
+    };
+};
+
+const randInt = (rng: () => number, min: number, max: number) => Math.floor(rng() * (max - min + 1)) + min;
+
+function spawnRocksIfDue(st: GameState): GameState {
+    const nextDay = st.spawners.rocksNextDay;
+    if (nextDay <= 0 || st.time.day < nextDay) return st;
+
+    const rng = mulberry32(st.seed ^ (st.time.day * 2654435761));
+    const after = spawnDesertRocks(st, 1, rng);
+    const schedule = st.time.day + randInt(rng, 1, 2);
+
+    return {
+        ...after,
+        spawners: { ...after.spawners, rocksNextDay: schedule }
+    };
 }
 
 function refreshAlerts(st: GameState): GameState {

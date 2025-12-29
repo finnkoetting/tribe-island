@@ -92,6 +92,7 @@ type LandScores = {
     desert: number;
     swamp: number;
     forest: number;
+    mountain: number;
 };
 
 const idxToXY = (i: number, w: number) => ({ x: i % w, y: Math.floor(i / w) });
@@ -233,8 +234,9 @@ export function createInitialWorld(seed = Date.now()): World {
 
     const targetDesert = Math.round(totalTiles * 0.08); // weniger Wüste
     const targetSwamp = Math.round(totalTiles * 0.13);
-    const targetForest = Math.round(totalTiles * 0.33);
-    const targetMeadow = Math.round(totalTiles * 0.23);
+    const targetForest = Math.round(totalTiles * 0.31);
+    const targetMeadow = Math.round(totalTiles * 0.22);
+    const targetMountain = Math.round(totalTiles * 0.04);
 
     const coastSide: CoastSide = "north";
     const rng = mulberry32(seed + 1337);
@@ -270,6 +272,13 @@ export function createInitialWorld(seed = Date.now()): World {
             const biomeDetail = valueNoise(seed + 431, x / 10, y / 10, 1);
             const biomeNoise = lerp(biomeBase, biomeDetail, 0.3);
 
+            const elevationBase = fbm(seed + 71, landWarp.x / 58, landWarp.y / 58, 4, 2.05, 0.52);
+            const ridgeNoise = valueNoise(seed + 313, landWarp.x / 16, landWarp.y / 16, 1);
+            const ridgeShape = 1 - Math.abs(ridgeNoise - 0.5) * 2;
+            const inland = Math.max(0, Math.min(1, coastBand / (coastDepth * 0.85)));
+            const elevation = lerp(elevationBase, ridgeShape, 0.5);
+            const mountainScore = elevation * 0.65 + inland * 0.25 + (1 - moisture) * 0.1;
+
             landScores.push({
                 i,
                 moisture,
@@ -277,7 +286,8 @@ export function createInitialWorld(seed = Date.now()): World {
                 scores: {
                     desert: (1 - moisture) * 0.75 + biomeNoise * 0.12,
                     swamp: moisture + (0.4 - Math.abs(biomeNoise - 0.4)) * 0.25,
-                    forest: biomeNoise + moisture * 0.25
+                    forest: biomeNoise + moisture * 0.25,
+                    mountain: mountainScore
                 }
             });
         }
@@ -308,6 +318,7 @@ export function createInitialWorld(seed = Date.now()): World {
     let pool = remainingLand;
     pool = assignBiome(pool, targetDesert, "desert", (s) => s.desert);
     pool = assignBiome(pool, targetSwamp, "swamp", (s) => s.swamp);
+    pool = assignBiome(pool, targetMountain, "mountain", (s) => s.mountain);
     pool = assignBiome(pool, targetForest, "forest", (s) => s.forest);
     pool = assignBiome(pool, targetMeadow, "meadow", () => 0.5);
 
@@ -322,6 +333,7 @@ export function createInitialWorld(seed = Date.now()): World {
 
     limitBiomeRegions(tiles, width, height, "desert", 3);
     limitBiomeRegions(tiles, width, height, "swamp", 3);
+    limitBiomeRegions(tiles, width, height, "mountain", 4);
     limitBiomeRegions(tiles, width, height, "forest", 3);
     limitBiomeRegions(tiles, width, height, "meadow", 3);
 
