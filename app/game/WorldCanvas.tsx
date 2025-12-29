@@ -18,7 +18,9 @@ import meadowTile3 from "../../src/ui/game/textures/terrain/meadow/3.png";
 import mountainTile1 from "../../src/ui/game/textures/terrain/mountain/1.png";
 import mountainTile2 from "../../src/ui/game/textures/terrain/mountain/2.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
+import campfireTextureFile from "../../src/ui/game/textures/buildings/lvl1_campfire.png";
 import stoneTextureFile from "../../src/ui/game/textures/objects/stone.png";
+import villagerTextureFile from "../../src/ui/game/textures/objects/villager.png";
 import berryBushTextureFile from "../../src/ui/game/textures/objects/berrybush.png";
 import mushroomTextureFile from "../../src/ui/game/textures/objects/mushroom.png";
 import treeTextureFile from "../../src/ui/game/textures/objects/tree.png";
@@ -29,7 +31,7 @@ const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;
 const DEG2RAD = Math.PI / 180;
 const MAX_DPR = 1.5;
-const MIN_ZOOM = 1.2;
+const MIN_ZOOM = 1.4;
 const ANIMAL_DETAIL_Z = 1.08;
 
 const TILE_COLORS: Record<WorldTileId, string> = {
@@ -56,18 +58,7 @@ const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
     desert: [desertTile1, desertTile2, desertTile3]
 };
 
-const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
-    gather_hut: "#3d8d4a",
-    campfire: "#d97745",
-    storage: "#5c6ac4",
-    watchpost: "#c45c7b",
-    townhall: "#3a5f8f",
-    road: "#8d7355",
-    rock: "#7b6858",
-    tree: "#3a6f3d",
-    berry_bush: "#2f7f3a",
-    mushroom: "#b0514b"
-};
+import { BUILDING_COLORS } from "../../src/ui/theme";
 
 const VILLAGER_COLOR = "#1f2937";
 const ANIMAL_STYLES = {
@@ -95,9 +86,11 @@ export type WorldCanvasProps = {
     onTileClick: (pos: Vec2) => void;
     onHover?: (pos: Vec2 | null) => void;
     onCancelBuild?: () => void;
+    onCollectBuilding?: (id: string) => void;
+    onFpsUpdate?: (fps: number) => void;
 };
 
-export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild }: WorldCanvasProps) {
+export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate }: WorldCanvasProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const spaceDownRef = useRef(false);
@@ -105,14 +98,14 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [cam, setCam] = useState<Camera>({ x: 0, y: 0, z: 1 });
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
-    const [showSettings, setShowSettings] = useState(false);
-    const [showFps, setShowFps] = useState(false);
-    const [fps, setFps] = useState(0);
+    const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTexture, setTreeTexture] = useState<ImageBitmap | null>(null);
     const [rockTexture, setRockTexture] = useState<ImageBitmap | null>(null);
+    const [villagerTexture, setVillagerTexture] = useState<ImageBitmap | null>(null);
     const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
     const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
+    const [campfireTexture, setCampfireTexture] = useState<ImageBitmap | null>(null);
     const fpsFrames = useRef(0);
     const fpsLast = useRef(0);
 
@@ -189,6 +182,18 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
+        loadImageBitmap(resolveImageSrc(villagerTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setVillagerTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load villager texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
         loadImageBitmap(resolveImageSrc(berryBushTextureFile))
             .then((bmp) => {
                 if (!cancelled) setBerryBushTexture(bmp);
@@ -206,6 +211,18 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 if (!cancelled) setMushroomTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load mushroom texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(campfireTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setCampfireTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load campfire texture", err));
         return () => {
             cancelled = true;
         };
@@ -250,6 +267,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         }
 
         setCam((prev) => clampCam(prev, w, h));
+        setViewSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
     }, [clampCam]);
 
     useEffect(() => {
@@ -266,13 +284,6 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     }, [resize, st.world.width, st.world.height]);
 
     useEffect(() => {
-        const onToggleSettings = (e: KeyboardEvent) => {
-            if (e.code === "KeyS") {
-                e.preventDefault();
-                setShowSettings((v) => !v);
-            }
-        };
-
         const wrap = wrapRef.current;
         if (!wrap) return;
         const r = wrap.getBoundingClientRect();
@@ -282,9 +293,6 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             const centered = { x: (worldPx.w - vw / prev.z) / 2, y: (worldPx.h - vh / prev.z) / 2, z: prev.z };
             return clampCam(centered, vw, vh);
         });
-
-        window.addEventListener("keydown", onToggleSettings);
-        return () => window.removeEventListener("keydown", onToggleSettings);
     }, [clampCam, worldPx.w, worldPx.h]);
 
     useEffect(() => {
@@ -364,10 +372,11 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             treeTexture,
             rockTexture,
             berryBushTexture,
-            mushroomTexture
+            mushroomTexture,
+            campfireTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
-        drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTexture);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
@@ -380,7 +389,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             const nextFps = elapsed > 0 ? (fpsFrames.current * 1000) / elapsed : 0;
             fpsFrames.current = 0;
             fpsLast.current = now;
-            requestAnimationFrame(() => setFps(nextFps));
+            onFpsUpdate?.(nextFps);
         }
     }, [
         st,
@@ -396,8 +405,11 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         tileTextures,
         treeTexture,
         rockTexture,
+        villagerTexture,
         berryBushTexture,
-        mushroomTexture
+        mushroomTexture,
+        campfireTexture,
+        onFpsUpdate
     ]);
 
     const screenToWorld = (clientX: number, clientY: number) => {
@@ -535,6 +547,49 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     const cursor = drag.active ? "grabbing" : buildMode ? (canPlaceHover ? "pointer" : "not-allowed") : "default";
 
+    const buildingOverlays = useMemo(() => {
+        if (!viewSize.w || !viewSize.h) return [] as Array<{ id: string; type: BuildingTypeId; x: number; y: number; progress: number; collectable: boolean; blocked: boolean; output: GameState["buildings"][string]["output"] | null }>;
+
+        const vw = viewSize.w;
+        const vh = viewSize.h;
+        const margin = 80;
+
+        return Object.values(st.buildings)
+            .filter((b) =>
+                b.task.kind !== "none" &&
+                b.type !== "road" &&
+                b.type !== "rock" &&
+                b.type !== "tree" &&
+                b.type !== "berry_bush" &&
+                b.type !== "mushroom"
+            )
+            .map((b) => {
+                const size = getBuildingSize(b.type);
+                const anchorX = b.pos.x + size.w / 2;
+                const anchorY = b.pos.y + size.h / 2;
+                const { sx, sy } = tileToScreen(anchorX, anchorY, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+                const px = (sx - cam.x) * cam.z;
+                const py = (sy - cam.y) * cam.z;
+                return { b, px, py };
+            })
+            .filter((entry) => entry.px >= -margin && entry.px <= vw + margin && entry.py >= -margin && entry.py <= vh + margin)
+            .map((entry) => {
+                const b = entry.b;
+                const progressRaw = (b.task.progress / Math.max(1, b.task.duration)) * 100;
+                const progress = Math.max(0, Math.min(100, Math.round(progressRaw)));
+                return {
+                    id: b.id,
+                    type: b.type,
+                    x: entry.px,
+                    y: entry.py,
+                    progress,
+                    collectable: b.task.collectable && Boolean(b.output),
+                    blocked: b.task.blocked,
+                    output: b.output ?? null
+                };
+            });
+    }, [st.buildings, cam.x, cam.y, cam.z, viewSize.w, viewSize.h, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA]);
+
     return (
         <div
             ref={wrapRef}
@@ -563,79 +618,68 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 }}
             />
 
-            {showSettings && (
-                <div
-                    style={{
-                        position: "absolute",
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%, -50%)",
-                        padding: "14px 16px",
-                        borderRadius: 10,
-                        background: "rgba(0,0,0,0.78)",
-                        color: "#f8fafc",
-                        fontSize: 14,
-                        minWidth: 240,
-                        boxShadow: "0 12px 28px rgba(0,0,0,0.45)",
-                        backdropFilter: "blur(8px)",
-                        border: "1px solid rgba(255,255,255,0.14)",
-                        pointerEvents: "auto",
-                        zIndex: 1000
-                    }}
-                >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                        <span style={{ fontWeight: 600 }}>Settings</span>
-                        <button
-                            onClick={() => setShowSettings(false)}
-                            style={{
-                                background: "none",
-                                border: "none",
-                                color: "#e2e8f0",
-                                cursor: "pointer",
-                                fontSize: 16,
-                                padding: 4
-                            }}
-                            aria-label="Close settings"
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                {buildingOverlays.map(card => {
+                    const color = BUILDING_COLORS[card.type] || "#f97316";
+                    const barColor = card.collectable ? "#22c55e" : card.blocked ? "#ef4444" : color;
+                    return (
+                        <div
+                            key={card.id}
+                            style={{ position: "absolute", left: card.x, top: card.y, transform: "translate(-50%, -110%)", pointerEvents: "none" }}
                         >
-                            ×
-                        </button>
-                    </div>
-
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                        <input
-                            type="checkbox"
-                            checked={showFps}
-                            onChange={(e) => setShowFps(e.target.checked)}
-                            style={{ width: 16, height: 16 }}
-                        />
-                        <span>Show FPS</span>
-                    </label>
-
-                    <div style={{ marginTop: 10, color: "#cbd5e1", fontSize: 12 }}>Shortcut: S zum Öffnen/Schließen</div>
-                </div>
-            )}
-
-            {showFps && (
-                <div
-                    style={{
-                        position: "absolute",
-                        top: 12,
-                        left: 12,
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        background: "rgba(0,0,0,0.72)",
-                        color: "#f8fafc",
-                        fontSize: 13,
-                        fontVariantNumeric: "tabular-nums",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        boxShadow: "0 8px 16px rgba(0,0,0,0.35)",
-                        pointerEvents: "none",
-                        zIndex: 1001
-                    }}
-                >
-                    FPS: {fps.toFixed(1)}
-                </div>
-            )}
+                            <div
+                                style={{
+                                    minWidth: 120,
+                                    maxWidth: 170,
+                                    padding: "8px 10px",
+                                    borderRadius: 10,
+                                    background: "rgba(255,255,255,0.92)",
+                                    border: `1px solid ${applyAlpha(color, 0.35)}`,
+                                    boxShadow: "0 10px 22px rgba(0,0,0,0.28)",
+                                    pointerEvents: "auto"
+                                }}
+                                onMouseDown={e => e.stopPropagation()}
+                                onMouseUp={e => e.stopPropagation()}
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", fontSize: 11, marginBottom: 4 }}>
+                                    <span style={{ fontWeight: 700 }}>Auftrag</span>
+                                    <span style={{ opacity: 0.7 }}>{card.progress}%</span>
+                                </div>
+                                <div style={{ width: "100%", height: 8, borderRadius: 6, background: "rgba(0,0,0,0.08)", overflow: "hidden", marginBottom: 6 }}>
+                                    <div style={{ width: `${card.progress}%`, height: "100%", background: barColor, transition: "width 0.2s ease" }} />
+                                </div>
+                                {card.output && (
+                                    <div style={{ fontSize: 11, opacity: 0.75, marginBottom: card.collectable ? 6 : 0 }}>
+                                        Output: {card.output.amount} {card.output.resource}
+                                    </div>
+                                )}
+                                {card.collectable && onCollectBuilding && (
+                                    <button
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            onCollectBuilding(card.id);
+                                        }}
+                                        style={{
+                                            width: "100%",
+                                            padding: "6px 8px",
+                                            borderRadius: 8,
+                                            border: `1px solid ${applyAlpha(color, 0.7)}`,
+                                            background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
+                                            cursor: "pointer",
+                                            fontWeight: 800,
+                                            color: "#2e1b10"
+                                        }}
+                                    >
+                                        Einsammeln
+                                    </button>
+                                )}
+                                {card.blocked && !card.collectable && <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 4 }}>Blockiert</div>}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -896,7 +940,8 @@ function drawBuildings(
     treeTexture: ImageBitmap | null,
     rockTexture: ImageBitmap | null,
     berryBushTexture: ImageBitmap | null,
-    mushroomTexture: ImageBitmap | null
+    mushroomTexture: ImageBitmap | null,
+    campfireTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
@@ -932,25 +977,77 @@ function drawBuildings(
         const size = getBuildingSize(b.type);
         const color = BUILDING_COLORS[b.type] || "#2e2e2e";
 
-        for (let dy = 0; dy < size.h; dy++) {
-            for (let dx = 0; dx < size.w; dx++) {
-                const tx = b.pos.x + dx;
-                const ty = b.pos.y + dy;
-                const { sx, sy } = tileToScreen(tx, ty, originX, originY, cosA, sinA);
+        if (b.type === "campfire") {
+            drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
 
-                ctx.fillStyle = applyAlpha(color, 0.9);
-                ctx.beginPath();
-                ctx.moveTo(sx, sy + HALF_H);
-                ctx.lineTo(sx + HALF_W, sy);
-                ctx.lineTo(sx + TILE_W, sy + HALF_H);
-                ctx.lineTo(sx + HALF_W, sy + TILE_H);
-                ctx.closePath();
-                ctx.fill();
-
-                ctx.strokeStyle = "rgba(0,0,0,0.2)";
-                ctx.lineWidth = 1;
-                ctx.stroke();
+            if (campfireTexture) {
+                const centerX = b.pos.x + size.w / 2;
+                const centerY = b.pos.y + size.h / 2;
+                const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
+                drawIsoSprite(ctx, campfireTexture, sx, sy, { heightScale: 2, widthScale: 1.1, offsetY: -6 });
             }
+            continue;
+        }
+
+        fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
+    }
+}
+
+function drawFootprintShadow(
+    ctx: CanvasRenderingContext2D,
+    building: GameState["buildings"][string],
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
+    const size = getBuildingSize(building.type);
+    for (let dy = 0; dy < size.h; dy++) {
+        for (let dx = 0; dx < size.w; dx++) {
+            const tx = building.pos.x + dx;
+            const ty = building.pos.y + dy;
+            const { sx, sy } = tileToScreen(tx, ty, originX, originY, cosA, sinA);
+
+            ctx.fillStyle = "rgba(0,0,0,0.12)";
+            ctx.beginPath();
+            ctx.moveTo(sx, sy + HALF_H);
+            ctx.lineTo(sx + HALF_W, sy);
+            ctx.lineTo(sx + TILE_W, sy + HALF_H);
+            ctx.lineTo(sx + HALF_W, sy + TILE_H);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+}
+
+function fillBuildingFootprint(
+    ctx: CanvasRenderingContext2D,
+    building: GameState["buildings"][string],
+    color: string,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number
+) {
+    const size = getBuildingSize(building.type);
+    for (let dy = 0; dy < size.h; dy++) {
+        for (let dx = 0; dx < size.w; dx++) {
+            const tx = building.pos.x + dx;
+            const ty = building.pos.y + dy;
+            const { sx, sy } = tileToScreen(tx, ty, originX, originY, cosA, sinA);
+
+            ctx.fillStyle = applyAlpha(color, 0.9);
+            ctx.beginPath();
+            ctx.moveTo(sx, sy + HALF_H);
+            ctx.lineTo(sx + HALF_W, sy);
+            ctx.lineTo(sx + TILE_W, sy + HALF_H);
+            ctx.lineTo(sx + HALF_W, sy + TILE_H);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(0,0,0,0.2)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
         }
     }
 }
@@ -1056,6 +1153,40 @@ function drawRoadTile(
     ctx.stroke();
 }
 
+type IsoSpriteOptions = {
+    heightScale: number;
+    widthScale?: number;
+    offsetX?: number;
+    offsetY?: number;
+    flipX?: boolean;
+};
+
+function drawIsoSprite(
+    ctx: CanvasRenderingContext2D,
+    texture: ImageBitmap,
+    sx: number,
+    sy: number,
+    { heightScale, widthScale, offsetX = 0, offsetY = 0, flipX = false }: IsoSpriteOptions
+) {
+    const ratio = texture.height > 0 ? texture.width / texture.height : 1;
+    const targetH = TILE_H * heightScale;
+    const targetW = targetH * ratio * (widthScale ?? 1);
+
+    const dx = sx + HALF_W - targetW / 2 + offsetX;
+    const dy = sy + TILE_H - targetH + offsetY;
+
+    if (flipX) {
+        ctx.save();
+        ctx.translate(dx + targetW, dy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(texture, 0, 0, targetW, targetH);
+        ctx.restore();
+        return;
+    }
+
+    ctx.drawImage(texture, dx, dy, targetW, targetH);
+}
+
 function drawRockTile(
     ctx: CanvasRenderingContext2D,
     pos: Vec2,
@@ -1068,7 +1199,7 @@ function drawRockTile(
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
 
     if (rockTexture) {
-        ctx.drawImage(rockTexture, sx, sy, TILE_W, TILE_H);
+        drawIsoSprite(ctx, rockTexture, sx, sy, { heightScale: 0.95, widthScale: 0.9 });
         return;
     }
 
@@ -1105,7 +1236,7 @@ function drawTreeTile(
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
     if (treeTexture) {
-        ctx.drawImage(treeTexture, sx, sy, TILE_W, TILE_H);
+        drawIsoSprite(ctx, treeTexture, sx, sy, { heightScale: 1.6, widthScale: 0.9 });
         return;
     }
 
@@ -1142,7 +1273,7 @@ function drawBushTile(
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
     if (bushTexture) {
-        ctx.drawImage(bushTexture, sx, sy, TILE_W, TILE_H);
+        drawIsoSprite(ctx, bushTexture, sx, sy, { heightScale: 1.4, widthScale: 0.9 });
         return;
     }
 
@@ -1178,7 +1309,7 @@ function drawMushroomTile(
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
     if (mushroomTexture) {
-        ctx.drawImage(mushroomTexture, sx, sy, TILE_W, TILE_H);
+        drawIsoSprite(ctx, mushroomTexture, sx, sy, { heightScale: 1.05, widthScale: 0.92 });
         return;
     }
 
@@ -1243,7 +1374,15 @@ function nearestCampfire(campfires: CampfireAnchor[], origin: Vec2): CampfireAnc
     return best;
 }
 
-function drawVillagers(ctx: CanvasRenderingContext2D, st: GameState, originX: number, originY: number, cosA: number, sinA: number) {
+function drawVillagers(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number,
+    villagerTexture: ImageBitmap | null
+) {
     const villagers = Object.values(st.villagers).filter((v) => v.state === "alive");
     if (!villagers.length) return;
 
@@ -1302,14 +1441,23 @@ function drawVillagers(ctx: CanvasRenderingContext2D, st: GameState, originX: nu
             const cx = sx + HALF_W;
             const cy = sy + HALF_H * 0.6;
 
-            ctx.fillStyle = VILLAGER_COLOR;
-            ctx.beginPath();
-            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-            ctx.fill();
+            if (villagerTexture) {
+                drawIsoSprite(ctx, villagerTexture, sx, sy, {
+                    heightScale: 0.9,
+                    widthScale: 0.85,
+                    offsetY: -1,
+                    flipX: v.facing === "left"
+                });
+            } else {
+                ctx.fillStyle = VILLAGER_COLOR;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+                ctx.fill();
 
-            ctx.strokeStyle = "rgba(255,255,255,0.7)";
-            ctx.lineWidth = 1;
-            ctx.stroke();
+                ctx.strokeStyle = "rgba(255,255,255,0.7)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
         });
     }
 }
@@ -1350,7 +1498,7 @@ function drawOverlays(
     };
 
     if (st.selection?.kind === "tile") {
-        drawTileHighlight(st.selection.pos, "rgba(11,107,255,0.8)", "rgba(11,107,255,0.12)");
+        drawTileHighlight(st.selection.pos, "rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)");
     }
 
     if (!hover) return;
@@ -1394,8 +1542,8 @@ function drawOverlays(
             for (let dx = 0; dx < size.w; dx++) {
                 drawTileHighlight(
                     { x: hoveredBuilding.pos.x + dx, y: hoveredBuilding.pos.y + dy },
-                    "rgba(59,130,246,0.9)",
-                    "rgba(59,130,246,0.14)"
+                    "rgba(255,255,255,0.92)",
+                    "rgba(255,255,255,0.18)"
                 );
             }
         }

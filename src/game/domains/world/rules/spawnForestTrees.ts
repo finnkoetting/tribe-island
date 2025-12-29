@@ -3,7 +3,7 @@ import { getBuildingSize } from "../../buildings/model/buildingSizes";
 import { canPlaceAt } from "./canPlaceAt";
 import { placeAt } from "./placeAt";
 
-export const FOREST_TREE_FILL_RATIO = 0.4;
+export const FOREST_TREE_FILL_RATIO = 2 / 4;
 
 const treeId = (rng: () => number) => `tree_${Math.floor(rng() * 1e9).toString(16)}`;
 

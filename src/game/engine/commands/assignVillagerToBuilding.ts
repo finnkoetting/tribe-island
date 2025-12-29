@@ -22,6 +22,20 @@ export function assignVillagerToBuilding(st: GameState, villagerId: string, buil
     if (buildingId && buildings[buildingId]) {
         const nb = buildings[buildingId];
         const already = nb.assignedVillagerIds.includes(villagerId);
+        const capacity = getWorkCapacity(nb.type, nb.level);
+        if (!already && nb.assignedVillagerIds.length >= capacity) {
+            return {
+                ...st,
+                buildings,
+                villagers: {
+                    ...st.villagers,
+                    [villagerId]: {
+                        ...v,
+                        assignedBuildingId: null
+                    }
+                }
+            };
+        }
 
         buildings = {
             ...buildings,
@@ -43,4 +57,16 @@ export function assignVillagerToBuilding(st: GameState, villagerId: string, buil
             }
         }
     };
+}
+
+
+function getWorkCapacity(type: GameState["buildings"][string]["type"], level: number): number {
+    if (type === "gather_hut") {
+        if (level >= 5) return 5;
+        if (level === 4) return 4;
+        if (level === 3) return 4;
+        if (level === 2) return 2;
+        return 1; // level 1 default
+    }
+    return Infinity;
 }

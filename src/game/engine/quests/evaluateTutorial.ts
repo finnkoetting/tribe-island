@@ -6,6 +6,8 @@ const QUEST_TARGETS: Partial<Record<QuestId, BuildingTypeId>> = {
     tutorial_research: "gather_hut"
 };
 
+const TUTORIAL_ORDER: QuestId[] = ["tutorial_home", "tutorial_food", "tutorial_research"];
+
 export function evaluateTutorialQuests(st: GameState): GameState {
     if (!st.quests) return st;
 
@@ -14,16 +16,32 @@ export function evaluateTutorialQuests(st: GameState): GameState {
     let changed = false;
     const quests: GameState["quests"] = { ...st.quests };
 
-    for (const [questId, type] of Object.entries(QUEST_TARGETS)) {
-        if (!type) continue;
-        const q = quests[questId as QuestId];
-        if (!q) continue;
+    let previousDone = true;
+    for (const questId of TUTORIAL_ORDER) {
+        const target = QUEST_TARGETS[questId];
+        const q = quests[questId];
+        if (!q) {
+            previousDone = false;
+            continue;
+        }
 
-        const progress = hasBuilding(type) ? q.goal : 0;
-        const done = progress >= q.goal;
+        const locked = !previousDone;
+        const progress = locked || !target ? 0 : hasBuilding(target) ? q.goal : 0;
+        const done = locked ? false : progress >= q.goal;
 
-        if (q.progress !== progress || q.done !== done) {
-            quests[questId as QuestId] = { ...q, progress, done };
+        if (q.progress !== progress || q.done !== done || q.locked !== locked) {
+            quests[questId] = { ...q, progress, done, locked };
+            changed = true;
+        }
+
+        previousDone = done;
+    }
+
+    // Ensure non-tutorial quests stay unlocked by default
+    for (const [questId, quest] of Object.entries(quests)) {
+        const isTutorialQuest = TUTORIAL_ORDER.includes(questId as QuestId);
+        if (!isTutorialQuest && quest.locked !== false) {
+            quests[questId as QuestId] = { ...quest, locked: false };
             changed = true;
         }
     }

@@ -17,7 +17,14 @@ export function placeAt(st: GameState, building: Building): GameState {
 
 export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Building {
     const output =
-        type === "gather_hut" ? ({ resource: "berries", amount: 6 } as const) : null;
+        type === "gather_hut"
+            ? ({ resource: "berries", amount: 6 } as const)
+            : type === "sawmill"
+            ? ({ resource: "planks", amount: 4 } as const)
+            : null;
+
+    const taskKind = type === "gather_hut" || type === "sawmill" ? "produce" : "none";
+    const taskDuration = type === "gather_hut" ? 30000 : type === "sawmill" ? 45000 : 0;
 
     return {
         id,
@@ -27,9 +34,9 @@ export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Bu
         assignedVillagerIds: [],
         residentIds: [],
         task: {
-            kind: type === "gather_hut" ? "produce" : "none",
+            kind: taskKind,
             progress: 0,
-            duration: type === "gather_hut" ? 30000 : 0,
+            duration: taskDuration,
             blocked: false,
             collectable: false
         },

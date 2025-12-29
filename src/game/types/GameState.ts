@@ -82,6 +82,7 @@ export type Inventory = Record<ResourceId, number>;
 export type VillagerJobId =
     | "idle"
     | "gatherer"
+    | "woodcutter"
     | "builder"
     | "researcher"
     | "fisher"
@@ -101,11 +102,13 @@ export type VillagerNeeds = {
 };
 
 export type VillagerState = "alive" | "dead";
+export type VillagerFacing = "left" | "right";
 
 export type Villager = {
     id: Id;
     name: string;
     pos: Vec2;
+    facing: VillagerFacing;
     job: VillagerJobId;
     assignedBuildingId: Id | null;
     homeBuildingId: Id | null;
@@ -124,6 +127,7 @@ export type BuildingTypeId =
     | "campfire"
     | "storage"
     | "watchpost"
+    | "sawmill"
     | "road"
     | "rock"
     | "tree"
@@ -201,6 +205,7 @@ export type QuestState = {
     done: boolean;
     progress: number;
     goal: number;
+    locked: boolean;
 };
 
 /* =======================

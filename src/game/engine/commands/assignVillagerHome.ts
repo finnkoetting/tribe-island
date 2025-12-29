@@ -22,13 +22,16 @@ export function assignVillagerHome(st: GameState, villagerId: string, buildingId
         const nextB = buildings[buildingId];
         const current = nextB.residentIds ?? [];
         const already = current.includes(villagerId);
-        buildings = {
-            ...buildings,
-            [buildingId]: {
-                ...nextB,
-                residentIds: already ? current : current.concat(villagerId)
-            }
-        };
+        const capacity = getHomeCapacity(nextB.type);
+        if (already || current.length < capacity) {
+            buildings = {
+                ...buildings,
+                [buildingId]: {
+                    ...nextB,
+                    residentIds: already ? current : current.concat(villagerId)
+                }
+            };
+        }
     }
 
     return {
@@ -47,4 +50,9 @@ export function assignVillagerHome(st: GameState, villagerId: string, buildingId
             payload: { villagerId, buildingId }
         })
     };
+}
+
+function getHomeCapacity(type: GameState["buildings"][string]["type"]): number {
+    if (type === "townhall") return 1; // Only one resident allowed in townhall
+    return Infinity;
 }

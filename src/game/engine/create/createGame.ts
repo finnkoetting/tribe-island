@@ -63,10 +63,10 @@ export function createGame(seed = Date.now()): GameState {
         villagers,
 
         quests: {
-            tutorial_home: { id: "tutorial_home", title: "Baue das Rathaus", done: false, progress: 0, goal: 1 },
-            tutorial_food: { id: "tutorial_food", title: "Entzuende ein Lagerfeuer", done: false, progress: 0, goal: 1 },
-            tutorial_research: { id: "tutorial_research", title: "Errichte eine Sammlerhuette", done: false, progress: 0, goal: 1 },
-            survive_first_crisis: { id: "survive_first_crisis", title: "Erste Krise ueberleben", done: false, progress: 0, goal: 1 }
+            tutorial_home: { id: "tutorial_home", title: "Baue das Rathaus", done: false, progress: 0, goal: 1, locked: false },
+            tutorial_food: { id: "tutorial_food", title: "Entzuende ein Lagerfeuer", done: false, progress: 0, goal: 1, locked: true },
+            tutorial_research: { id: "tutorial_research", title: "Errichte eine Sammlerhuette", done: false, progress: 0, goal: 1, locked: true },
+            survive_first_crisis: { id: "survive_first_crisis", title: "Erste Krise ueberleben", done: false, progress: 0, goal: 1, locked: false }
         },
 
         alerts: {

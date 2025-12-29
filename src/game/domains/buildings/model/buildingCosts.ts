@@ -6,6 +6,7 @@ export const BUILDING_COSTS: Record<BuildingTypeId, BuildingCost> = {
     townhall: { wood: 8, berries: 4 },
     campfire: { wood: 6 },
     gather_hut: { wood: 5 },
+    sawmill: { wood: 18 },
     storage: { wood: 6, berries: 2 },
     watchpost: { wood: 12, stone: 4 },
     road: { wood: 1 },

@@ -8,6 +8,7 @@ import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import { getBuildingSize } from "../../src/game/domains/buildings/model/buildingSizes";
 import type { BuildingTypeId, GameState, QuestId, Vec2 } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
+import { UI_THEME as THEME, BUILDING_COLORS } from "../../src/ui/theme";
 
 type BuildItem = {
     id: string;
@@ -120,7 +121,15 @@ const BUILD_SECTIONS: BuildSection[] = [
         focus: "Planung, Produktion, Entscheidungen",
         accent: "#3b82f6",
         items: [
-            { id: "carpentry", title: "Schreinerei", size: "3x2", effect: "Holz zu Planken", upgrade: "Bonusoutput", status: "planned" },
+            {
+                id: "sawmill",
+                type: "sawmill",
+                title: "Saegewerk",
+                size: "3x2",
+                effect: "Wandelt Holz in Bretter",
+                upgrade: "Schnellerer Zuschnitt",
+                status: "available"
+            },
             { id: "weaving", title: "Weberei", size: "3x2", effect: "Fasern zu Stoffen", upgrade: "Moral-Items", status: "planned" },
             { id: "medical_hut", title: "Medizinische Huette", size: "2x2", effect: "Krankheiten heilbar", upgrade: "Seuchen abmildern", status: "planned" },
             { id: "warehouse_big", title: "Grosses Lager", size: "3x3", effect: "Massive Kapazitaet", upgrade: "Sortierung (Bonusse)", status: "planned" },
@@ -195,6 +204,22 @@ const TUTORIAL_STEPS: Array<{ id: QuestId; description: string; target?: Buildin
     }
 ];
 
+function isTutorialBuildLocked(type: BuildingTypeId | null, quests?: GameState["quests"]): boolean {
+    if (!type || !quests) return false;
+    const step = TUTORIAL_STEPS.find(s => s.target === type);
+    if (!step) return false;
+    return quests[step.id]?.locked ?? false;
+}
+
+function getActiveTutorialId(quests?: GameState["quests"]): QuestId | null {
+    if (!quests) return null;
+    const next = TUTORIAL_STEPS.find(step => {
+        const q = quests[step.id];
+        return q && !q.done;
+    });
+    return next ? next.id : null;
+}
+
 const BUILDABLE_ITEMS = BUILD_SECTIONS.flatMap(section => section.items).filter((item): item is BuildItem & { type: BuildingTypeId } => item.status === "available" && Boolean(item.type));
 const BUILDABLE_TYPE_SET = new Set<BuildingTypeId>(BUILDABLE_ITEMS.map(item => item.type));
 const BUILD_META: Record<BuildingTypeId, { title: string; cost: string; size: string; effect: string }> = BUILDABLE_ITEMS.reduce(
@@ -210,21 +235,10 @@ const BUILD_META: Record<BuildingTypeId, { title: string; cost: string; size: st
     {} as Record<BuildingTypeId, { title: string; cost: string; size: string; effect: string }>
 );
 
-const THEME = {
-    background: "radial-gradient(circle at 20% 18%, #fff5e7 0%, #ffe4c7 40%, #ffd4b4 58%, #fcb39d 75%, #f59a94 100%)",
-    text: "#2e1b10",
-    panelBg: "rgba(255, 245, 235, 0.92)",
-    panelBorder: "rgba(255, 185, 145, 0.7)",
-    panelShadow: "0 18px 36px rgba(245, 142, 96, 0.28)",
-    chipBg: "rgba(255, 255, 255, 0.82)",
-    chipBorder: "rgba(70, 38, 15, 0.16)",
-    accent: "#ff914d",
-    accentGlow: "0 12px 26px rgba(255, 145, 77, 0.35)",
-    overlayGradient: "linear-gradient(180deg, transparent 0%, rgba(255, 223, 200, 0.9) 55%)"
-};
 
 const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: FC; color: string }> = [
     { id: "wood", label: "Holz", Icon: WoodIcon, color: "#d4a373" },
+    { id: "planks", label: "Bretter", Icon: WoodIcon, color: "#c8a46b" },
     { id: "berries", label: "Beeren", Icon: BerriesIcon, color: "#b85acb" },
     { id: "fish", label: "Fisch", Icon: FishIcon, color: "#4cc3ff" },
     { id: "stone", label: "Stein", Icon: StoneIcon, color: "#9ca3af" },
@@ -244,6 +258,7 @@ export default function GameClient() {
     const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
+    const [fps, setFps] = useState(0);
 
     useEffect(() => {
         const loop = (t: number) => {
@@ -290,8 +305,19 @@ export default function GameClient() {
         } as Record<string, boolean>;
     }, [st.inventory.knowledge]);
 
+    const tutorialLocks = useMemo(() => {
+        const result: Partial<Record<BuildingTypeId, boolean>> = {};
+        TUTORIAL_STEPS.forEach(step => {
+            if (step.target) {
+                result[step.target] = st.quests?.[step.id]?.locked ?? false;
+            }
+        });
+        return result;
+    }, [st.quests]);
+
     const handleSelectBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
+        if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(prev => (prev === type ? null : type));
         setBuildMenuOpen(false);
         setVillagerMenuOpen(false);
@@ -319,7 +345,9 @@ export default function GameClient() {
             }
 
             if (buildMode && BUILDABLE_TYPE_SET.has(buildMode)) {
-                next = engine.commands.placeBuilding(next, buildMode, pos);
+                if (!isTutorialBuildLocked(buildMode, next.quests)) {
+                    next = engine.commands.placeBuilding(next, buildMode, pos);
+                }
             }
             return next;
         });
@@ -338,6 +366,7 @@ export default function GameClient() {
 
     const handlePlanTutorialBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
+        if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(type);
         setBuildMenuOpen(false);
         setVillagerMenuOpen(false);
@@ -361,20 +390,33 @@ export default function GameClient() {
                     onTileClick={handleTileClick}
                     onHover={setHoverTile}
                     onCancelBuild={() => setBuildMode(null)}
+                    onCollectBuilding={handleCollect}
+                    onFpsUpdate={setFps}
                 />
             </div>
 
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                <TopLeftHud st={st} />
+                <TopLeftHud st={st} fps={fps} />
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
                 <HoverCard hoveredBuilding={hoveredBuilding} hoveredTileId={hoveredTileId} hoverTile={hoverTile} canPlace={canPlaceHover} buildMode={buildMode} />
-                <BuildMenu open={buildMenuOpen} sections={BUILD_SECTIONS} activeType={buildMode} unlocks={unlocks} onSelect={handleSelectBuild} onClose={() => setBuildMenuOpen(false)} />
+                <BuildMenu
+                    open={buildMenuOpen}
+                    sections={BUILD_SECTIONS}
+                    activeType={buildMode}
+                    unlocks={unlocks}
+                    quests={st.quests}
+                    tutorialLocks={tutorialLocks}
+                    onSelect={handleSelectBuild}
+                    onClose={() => setBuildMenuOpen(false)}
+                />
                 <BuildingModal
                     open={buildingModalOpen && st.selection.kind === "building" && Boolean(st.buildings[st.selection.id])}
                     building={st.selection.kind === "building" ? st.buildings[st.selection.id] : null}
+                    st={st}
                     onClose={() => setBuildingModalOpen(false)}
                     onCollect={handleCollect}
+                    onAssignWork={handleAssignWork}
                 />
                 <VillagerMenu
                     open={villagerMenuOpen}
@@ -394,13 +436,14 @@ export default function GameClient() {
                     onCancelBuild={() => setBuildMode(null)}
                     villagerCount={aliveVillagers.length}
                     onCloseBuildingModal={() => setBuildingModalOpen(false)}
+                    fps={fps}
                 />
             </div>
         </div>
     );
 }
 
-function TopLeftHud({ st }: { st: GameState }) {
+function TopLeftHud({ st, fps }: { st: GameState; fps: number }) {
     return (
         <div
             style={{
@@ -420,7 +463,7 @@ function TopLeftHud({ st }: { st: GameState }) {
             <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: -0.2 }}>Tribe Island</div>
             <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                 <Tag label="Phase" value={st.time.phase} />
-                <Tag label="Zeit" value={formatClock(st)} />
+                <Tag label="FPS" value={Math.round(fps).toString()} />
                 <Tag label="Tag" value={String(st.time.day)} />
             </div>
         </div>
@@ -430,87 +473,86 @@ function TopLeftHud({ st }: { st: GameState }) {
 function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"]; onSelectBuild: (type: BuildingTypeId) => void }) {
     if (!quests) return null;
 
+    const activeId = getActiveTutorialId(quests);
+    const activeTitle = activeId ? quests[activeId]?.title ?? "Aktueller Schritt" : "Alle Schritte geschafft";
+    const activeStep = activeId ? TUTORIAL_STEPS.find(s => s.id === activeId) : null;
+    const quest = activeId ? quests[activeId] : null;
+    const meta = activeStep?.target ? BUILD_META[activeStep.target] : undefined;
+
     return (
         <div
             style={{
                 position: "absolute",
-                top: 110,
-                left: 18,
-                width: "min(360px, 92vw)",
-                padding: 12,
-                background: THEME.panelBg,
-                border: `1px solid ${THEME.panelBorder}`,
-                borderRadius: 14,
-                boxShadow: THEME.panelShadow,
-                backdropFilter: "blur(6px)",
+                top: 14,
+                left: 14,
+                padding: "10px 12px",
+                maxWidth: "320px",
+                background: "rgba(255, 238, 210, 0.32)",
+                border: "1px solid rgba(255, 206, 140, 0.6)",
+                borderRadius: 12,
+                boxShadow: "0 10px 28px rgba(40,20,8,0.18)",
+                backdropFilter: "blur(10px)",
                 pointerEvents: "auto",
                 display: "grid",
-                gap: 10
+                gap: 8
             }}
         >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>Tutorial</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>Fokus: Baue zuerst das Rathaus</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                    style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        background: THEME.accent,
+                        boxShadow: THEME.accentGlow
+                    }}
+                />
+                <div style={{ display: "grid", gap: 2 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>Tutorial</div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>{activeId ? `Aktiv: ${activeTitle}` : "Fertig: Baue frei weiter"}</div>
                 </div>
             </div>
 
-            <div style={{ display: "grid", gap: 8 }}>
-                {TUTORIAL_STEPS.map(step => {
-                    const quest = quests[step.id];
-                    const done = quest?.done;
-                    const meta = step.target ? BUILD_META[step.target] : undefined;
-
-                    return (
-                        <div
-                            key={step.id}
+            {activeStep && quest && (
+                <div
+                    style={{
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,206,140,0.8)",
+                        background: "rgba(255, 255, 255, 0.78)",
+                        padding: 10,
+                        display: "grid",
+                        gap: 6,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.45)"
+                    }}
+                >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 800 }}>{quest.title}</span>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>
+                            {quest.progress}/{quest.goal}
+                        </span>
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>{activeStep.description}</div>
+                    {activeStep.hint && <div style={{ fontSize: 11, opacity: 0.65 }}>Hinweis: {activeStep.hint}</div>}
+                    {meta && <div style={{ fontSize: 11, opacity: 0.7 }}>Kosten: {meta.cost}</div>}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button
+                            onClick={() => activeStep.target && onSelectBuild(activeStep.target)}
                             style={{
-                                border: `1px solid ${done ? THEME.chipBorder : THEME.panelBorder}`,
-                                background: done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.82)",
-                                borderRadius: 12,
-                                padding: 10,
-                                display: "grid",
-                                gap: 6,
-                                opacity: done ? 0.7 : 1
+                                padding: "8px 12px",
+                                borderRadius: 10,
+                                border: "1px solid rgba(255,206,140,0.9)",
+                                background: "linear-gradient(135deg, rgba(255,210,150,0.9), rgba(240,170,90,0.85))",
+                                cursor: "pointer",
+                                fontWeight: 800,
+                                boxShadow: THEME.accentGlow
                             }}
                         >
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div
-                                    style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: 20,
-                                        background: done ? "#22c55e" : THEME.accent,
-                                        boxShadow: done ? "0 0 0 6px rgba(34,197,94,0.18)" : THEME.accentGlow
-                                    }}
-                                />
-                                <div style={{ fontWeight: 800 }}>{quest?.title ?? "Schritt"}</div>
-                                {quest && <span style={{ fontSize: 11, opacity: 0.65 }}>Fortschritt: {quest.progress}/{quest.goal}</span>}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.8 }}>{step.description}</div>
-                            {step.hint && <div style={{ fontSize: 11, opacity: 0.65 }}>Hinweis: {step.hint}</div>}
-                            {meta && <div style={{ fontSize: 11, opacity: 0.75 }}>Kosten: {meta.cost}</div>}
-                            {!done && step.target && (
-                                <button
-                                    onClick={() => onSelectBuild(step.target!)}
-                                    style={{
-                                        justifySelf: "start",
-                                        padding: "8px 12px",
-                                        borderRadius: 10,
-                                        border: `1px solid ${THEME.panelBorder}`,
-                                        background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
-                                        cursor: "pointer",
-                                        fontWeight: 700,
-                                        boxShadow: THEME.panelShadow
-                                    }}
-                                >
-                                    {meta ? `${meta.title} bauen` : "Bauen"}
-                                </button>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                            Bauen
+                        </button>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>Naechster Schritt wird automatisch frei.</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -520,11 +562,20 @@ function TopRightResources({ st }: { st: GameState }) {
         <div
             style={{
                 position: "absolute",
-                top: 18,
-                right: 18,
-                display: "grid",
-                gap: 6,
-                pointerEvents: "auto"
+                top: 16,
+                right: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                maxWidth: "min(70vw, 640px)",
+                pointerEvents: "auto",
+                padding: "6px 8px",
+                background: "rgba(30, 15, 0, 0.15)",
+                borderRadius: 14,
+                border: "1px solid rgba(255,206,140,0.45)",
+                boxShadow: "0 10px 24px rgba(40,20,8,0.18)",
+                backdropFilter: "blur(10px)"
             }}
         >
             {RES_ORDER.map(res => (
@@ -534,14 +585,14 @@ function TopRightResources({ st }: { st: GameState }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        gap: 10,
-                        minWidth: 120,
+                        gap: 8,
+                        minWidth: 110,
                         padding: "6px 10px",
-                        background: THEME.panelBg,
+                        background: "linear-gradient(135deg, rgba(255,233,200,0.55), rgba(240,196,120,0.5))",
                         borderRadius: 10,
-                        border: `1px solid ${THEME.panelBorder}`,
-                        boxShadow: THEME.panelShadow,
-                        backdropFilter: "blur(4px)"
+                        border: "1px solid rgba(255,206,140,0.7)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.45), 0 6px 14px rgba(40,20,8,0.18)",
+                        backdropFilter: "blur(6px)"
                     }}
                 >
                     <span
@@ -552,7 +603,7 @@ function TopRightResources({ st }: { st: GameState }) {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: `linear-gradient(145deg, ${res.color}2b, #fff3e2)`,
+                            background: `radial-gradient(circle at 30% 30%, #fff7eb 0%, ${res.color}33 70%, transparent 100%)`,
                             border: `1px solid ${res.color}55`,
                             boxShadow: "inset 0 1px 2px rgba(255,255,255,0.38)",
                             fontSize: 15
@@ -601,10 +652,35 @@ function HoverCard({ hoveredBuilding, hoveredTileId, hoverTile, canPlace, buildM
     );
 }
 
-function BuildingModal({ open, building, onClose, onCollect }: { open: boolean; building: GameState["buildings"][string] | null; onClose: () => void; onCollect: (id: string) => void }) {
+function BuildingModal({
+    open,
+    building,
+    st,
+    onClose,
+    onCollect,
+    onAssignWork
+}: {
+    open: boolean;
+    building: GameState["buildings"][string] | null;
+    st: GameState;
+    onClose: () => void;
+    onCollect: (id: string) => void;
+    onAssignWork: (villagerId: string, buildingId: string | null) => void;
+}) {
     if (!open || !building) return null;
+
     const meta = BUILD_META[building.type];
     const collectable = building.task.collectable && building.output;
+    const progressPct = Math.max(0, Math.min(100, Math.round((building.task.progress / Math.max(1, building.task.duration)) * 100)));
+    const progressTone: "accent" | "ok" | "warn" = building.task.collectable ? "ok" : building.task.blocked ? "warn" : "accent";
+    const statusLabel = building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : "Laeuft";
+
+    const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
+    const assigned = building.assignedVillagerIds
+        .map(id => st.villagers[id])
+        .filter(Boolean)
+        .filter(v => v.state === "alive");
+    const available = villagers.filter(v => !building.assignedVillagerIds.includes(v.id));
 
     return (
         <div
@@ -615,73 +691,236 @@ function BuildingModal({ open, building, onClose, onCollect }: { open: boolean; 
                 alignItems: "center",
                 justifyContent: "center",
                 pointerEvents: "auto",
-                background: "rgba(0,0,0,0.35)",
+                background: "rgba(10,10,20,0.55)",
                 padding: 24,
                 zIndex: 20
             }}
         >
             <div
                 style={{
-                    width: "min(460px, 92vw)",
-                    background: THEME.panelBg,
-                    borderRadius: 16,
-                    border: `1px solid ${THEME.panelBorder}`,
-                    boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+                    width: "min(540px, 94vw)",
+                    borderRadius: 14,
+                    border: "2px solid #1f1b2d",
+                    boxShadow: "0 0 0 2px #f5e2c5, 0 18px 36px rgba(0,0,0,0.45)",
+                    background:
+                        "linear-gradient(180deg, rgba(255,247,235,0.96) 0%, rgba(250,231,206,0.95) 50%, rgba(246,214,180,0.95) 100%), repeating-linear-gradient(90deg, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 2px, transparent 2px, transparent 4px)",
                     padding: 16,
                     display: "grid",
-                    gap: 12
+                    gap: 12,
+                    imageRendering: "pixelated"
                 }}
             >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: 16 }}>{meta?.title ?? building.type}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ display: "grid", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span
+                                style={{
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: 3,
+                                    background: BUILDING_COLORS[building.type] ?? THEME.accent,
+                                    boxShadow: "0 0 0 1px rgba(0,0,0,0.18)"
+                                }}
+                            />
+                            <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>{meta?.title ?? building.type}</div>
+                        </div>
                         <div style={{ fontSize: 12, opacity: 0.75 }}>ID: {building.id}</div>
+                        {meta && <div style={{ fontSize: 12, opacity: 0.82 }}>Effekt: {meta.effect}</div>}
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            border: `1px solid ${THEME.chipBorder}`,
-                            background: THEME.chipBg,
-                            borderRadius: 10,
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            fontWeight: 700
-                        }}
-                    >
-                        Schliessen
-                    </button>
-                </div>
-
-                <div style={{ display: "grid", gap: 8, fontSize: 12 }}>
-                    <div>Level: {building.level}</div>
-                    {meta && <div>Effekt: {meta.effect}</div>}
-                    <div>Bewohner zugewiesen: {building.assignedVillagerIds.length}</div>
-                </div>
-
-                <div style={{ border: `1px solid ${THEME.panelBorder}`, borderRadius: 12, padding: 10, background: "rgba(255,255,255,0.9)" }}>
-                    <div style={{ fontWeight: 800, marginBottom: 6 }}>Auftrag</div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>Status: {building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : "Läuft"}</div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>Fortschritt: {Math.floor((building.task.progress / Math.max(1, building.task.duration)) * 100)}%</div>
-                    {building.output && <div style={{ fontSize: 12, opacity: 0.8 }}>Ausgabe: {building.output.amount} {building.output.resource}</div>}
-                    {collectable && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <Badge label={`Lvl ${building.level}`} tone="muted" />
                         <button
-                            onClick={() => onCollect(building.id)}
+                            onClick={onClose}
                             style={{
-                                marginTop: 8,
-                                padding: "8px 12px",
+                                border: "2px solid #2b1a10",
+                                background: "linear-gradient(135deg, #ffe1b8, #ffb88a)",
                                 borderRadius: 10,
-                                border: `1px solid ${THEME.accent}`,
-                                background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
+                                padding: "8px 12px",
                                 cursor: "pointer",
                                 fontWeight: 800,
                                 boxShadow: THEME.accentGlow
                             }}
                         >
-                            Einsammeln
+                            Schliessen
                         </button>
-                    )}
+                    </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 10 }}>
+                    <div style={{ border: "2px solid #1f1b2d", borderRadius: 10, background: "rgba(255,255,255,0.92)", padding: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontWeight: 800 }}>Auftrag</div>
+                            <Badge label={statusLabel} tone={collectable ? "ok" : building.task.blocked ? "warn" : "accent"} />
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.8, display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+                            <span>{progressPct}%</span>
+                            {building.output && <span>Ausgabe: {building.output.amount} {building.output.resource}</span>}
+                        </div>
+                        <ProgressBar value={progressPct} tone={progressTone} />
+                        {collectable && (
+                            <button
+                                onClick={() => onCollect(building.id)}
+                                style={{
+                                    marginTop: 8,
+                                    padding: "8px 12px",
+                                    borderRadius: 10,
+                                    border: "2px solid #1f1b2d",
+                                    background: "linear-gradient(135deg, #c1ff72, #7edd52)",
+                                    cursor: "pointer",
+                                    fontWeight: 900,
+                                    boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
+                                    letterSpacing: 0.2
+                                }}
+                            >
+                                Einsammeln
+                            </button>
+                        )}
+                    </div>
+
+                    <div
+                        style={{
+                            border: "2px solid #1f1b2d",
+                            borderRadius: 10,
+                            background: "rgba(250,245,235,0.92)",
+                            padding: 12,
+                            display: "grid",
+                            gap: 10
+                        }}
+                    >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontWeight: 800 }}>Zugewiesene Bewohner ({assigned.length})</div>
+                            <Badge label={`${available.length} frei`} tone="muted" />
+                        </div>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                            {assigned.length === 0 && <div style={{ fontSize: 12, opacity: 0.65 }}>Keine Bewohner zugewiesen.</div>}
+                            {assigned.map(v => (
+                                <VillagerRow
+                                    key={v.id}
+                                    v={v}
+                                    actionLabel="Entfernen"
+                                    onAction={() => onAssignWork(v.id, null)}
+                                    tone="accent"
+                                />
+                            ))}
+                        </div>
+
+                        {available.length > 0 && (
+                            <div style={{ borderTop: "1px dashed rgba(0,0,0,0.12)", paddingTop: 10, display: "grid", gap: 8 }}>
+                                <div style={{ fontWeight: 800 }}>Verfuegbar</div>
+                                {available.slice(0, 5).map(v => (
+                                    <VillagerRow
+                                        key={v.id}
+                                        v={v}
+                                        actionLabel="Zuweisen"
+                                        onAction={() => onAssignWork(v.id, building.id)}
+                                        tone="ok"
+                                    />
+                                ))}
+                                {available.length > 5 && <div style={{ fontSize: 11, opacity: 0.6 }}>… {available.length - 5} weitere verfuegbar</div>}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function Badge({ label, tone = "muted" }: { label: string; tone?: "muted" | "ok" | "warn" | "accent" }) {
+    const palette = {
+        muted: { bg: "#f4eadc", border: "#2b1a10", color: "#2b1a10" },
+        ok: { bg: "#caff99", border: "#2f4f1f", color: "#1f2f10" },
+        warn: { bg: "#ffe0d0", border: "#7a1f0d", color: "#3c0f08" },
+        accent: { bg: "#ffd9a3", border: "#2b1a10", color: "#2b1a10" }
+    }[tone];
+
+    return (
+        <span
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: `2px solid ${palette.border}`,
+                background: palette.bg,
+                fontWeight: 800,
+                fontSize: 11,
+                letterSpacing: 0.2,
+                color: palette.color,
+                boxShadow: "0 2px 0 rgba(0,0,0,0.1)"
+            }}
+        >
+            {label}
+        </span>
+    );
+}
+
+function VillagerRow({ v, actionLabel, onAction, tone }: { v: GameState["villagers"][string]; actionLabel: string; onAction: () => void; tone: "ok" | "accent" }) {
+    const hunger = Math.round(v.needs.hunger * 100);
+    const energy = Math.round(v.needs.energy * 100);
+    const palette = tone === "ok" ? { border: "#2f4f1f", bg: "#f3ffe6" } : { border: "#2b1a10", bg: "#fff0de" };
+
+    return (
+        <div
+            style={{
+                border: `2px solid ${palette.border}`,
+                borderRadius: 10,
+                padding: 10,
+                background: palette.bg,
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 8,
+                alignItems: "center",
+                fontSize: 12
+            }}
+        >
+            <div style={{ display: "grid", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span
+                        style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            background: "linear-gradient(135deg, #ffe8c2, #ffcba2)",
+                            border: "1px solid rgba(0,0,0,0.2)",
+                            display: "grid",
+                            placeItems: "center",
+                            fontWeight: 800
+                        }}
+                    >
+                        {v.name.slice(0, 1)}
+                    </span>
+                    <div style={{ display: "grid", gap: 2 }}>
+                        <div style={{ fontWeight: 800 }}>{v.name}</div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", opacity: 0.8 }}>
+                            <span>#{v.id}</span>
+                            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.2)", background: "rgba(0,0,0,0.04)" }}>
+                                {v.job}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", opacity: 0.85 }}>
+                    <small>Hunger {hunger}%</small>
+                    <small>Energie {energy}%</small>
+                </div>
+            </div>
+            <button
+                onClick={onAction}
+                style={{
+                    border: `2px solid ${palette.border}`,
+                    background: tone === "ok" ? "linear-gradient(135deg, #d4ff9a, #9ddc5f)" : "linear-gradient(135deg, #ffd9a3, #ffb38a)",
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    cursor: "pointer",
+                    fontWeight: 900,
+                    minWidth: 96
+                }}
+            >
+                {actionLabel}
+            </button>
         </div>
     );
 }
@@ -696,7 +935,8 @@ function BottomHud({
     onToggleVillagerMenu,
     onCancelBuild,
     villagerCount,
-    onCloseBuildingModal
+    onCloseBuildingModal,
+    fps
 }: {
     st: GameState;
     setSt: React.Dispatch<React.SetStateAction<GameState>>;
@@ -708,6 +948,7 @@ function BottomHud({
     onCancelBuild: () => void;
     villagerCount: number;
     onCloseBuildingModal: () => void;
+    fps: number;
 }) {
     const hunger = st.alerts?.hunger?.severity ?? 0;
     return (
@@ -717,13 +958,14 @@ function BottomHud({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                padding: "12px 16px",
+                padding: "10px 14px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 pointerEvents: "none",
                 gap: 12,
-                background: THEME.overlayGradient
+                background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(30,15,0,0.28) 45%, rgba(30,15,0,0.42) 100%)",
+                backdropFilter: "blur(10px)"
             }}
         >
             <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
@@ -735,8 +977,20 @@ function BottomHud({
             <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
                 <HammerButton active={buildMenuOpen} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
                 <VillagerButton active={villagerMenuOpen} onClick={onToggleVillagerMenu} />
-                <div style={{ minWidth: 200, textAlign: "center", fontSize: 12, opacity: 0.85 }}>
-                    {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode} (${BUILD_META[buildMode]?.cost ?? ""})` : "Kein Bau aktiv"}
+                <div
+                    style={{
+                        minWidth: 180,
+                        textAlign: "center",
+                        fontSize: 12,
+                        opacity: 0.9,
+                        padding: "8px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,206,140,0.5)",
+                        background: "rgba(255, 233, 200, 0.18)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)"
+                    }}
+                >
+                    {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode}` : "Kein Bau aktiv"}
                 </div>
                 {buildMode && (
                     <button
@@ -744,11 +998,11 @@ function BottomHud({
                         style={{
                             padding: "8px 12px",
                             borderRadius: 10,
-                            border: `1px solid ${THEME.chipBorder}`,
-                            background: THEME.chipBg,
+                            border: "1px solid rgba(255,206,140,0.7)",
+                            background: "linear-gradient(135deg, rgba(255,210,150,0.9), rgba(240,170,90,0.85))",
                             cursor: "pointer",
                             fontWeight: 700,
-                            boxShadow: THEME.panelShadow
+                            boxShadow: THEME.accentGlow
                         }}
                     >
                         Abbrechen
@@ -762,7 +1016,7 @@ function BottomHud({
                     <Tag label="Hunger" value={String(hunger)} tone={hunger > 0 ? "warn" : "muted"} />
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Tag label="Zeit" value={formatClock(st)} />
+                    <Tag label="FPS" value={Math.round(fps).toString()} />
                     <Tag label="Tag" value={String(st.time.day)} />
                 </div>
             </div>
@@ -777,13 +1031,14 @@ function SpeedButton({ label, active, onClick }: { label: string; active?: boole
             style={{
                 width: 44,
                 height: 44,
-                borderRadius: 10,
-                border: active ? `1px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                borderRadius: 12,
+                border: active ? "1px solid rgba(255,206,140,0.9)" : "1px solid rgba(255,206,140,0.35)",
+                background: active ? "linear-gradient(135deg, rgba(255,210,150,0.95), rgba(240,170,90,0.85))" : "rgba(255, 233, 200, 0.18)",
                 color: THEME.text,
                 fontWeight: 800,
                 cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : "0 8px 16px rgba(46, 24, 8, 0.18)"
+                boxShadow: active ? THEME.accentGlow : "0 6px 12px rgba(40,20,8,0.2)",
+                backdropFilter: "blur(6px)"
             }}
         >
             {label}
@@ -795,7 +1050,7 @@ function Tag({ label, value, tone = "muted" }: { label: string; value: string; t
     const palette =
         tone === "warn"
             ? { bg: "rgba(255,149,128,0.22)", border: "rgba(255,149,128,0.6)" }
-            : { bg: THEME.chipBg, border: THEME.chipBorder };
+            : { bg: "rgba(255, 233, 200, 0.18)", border: "rgba(255,206,140,0.45)" };
     return (
         <span
             style={{
@@ -803,13 +1058,14 @@ function Tag({ label, value, tone = "muted" }: { label: string; value: string; t
                 alignItems: "center",
                 gap: 6,
                 padding: "6px 10px",
-                borderRadius: 10,
+                borderRadius: 12,
                 border: `1px solid ${palette.border}`,
                 background: palette.bg,
                 fontSize: 12,
                 fontWeight: 700,
                 color: THEME.text,
-                boxShadow: THEME.panelShadow
+                boxShadow: "0 6px 12px rgba(40,20,8,0.18)",
+                backdropFilter: "blur(6px)"
             }}
         >
             <span style={{ opacity: 0.75 }}>{label}</span>
@@ -876,6 +1132,8 @@ function BuildMenu({
     sections,
     activeType,
     unlocks,
+    quests,
+    tutorialLocks,
     onSelect,
     onClose
 }: {
@@ -883,6 +1141,8 @@ function BuildMenu({
     sections: BuildSection[];
     activeType: BuildingTypeId | null;
     unlocks: Record<string, boolean>;
+    quests?: GameState["quests"];
+    tutorialLocks: Partial<Record<BuildingTypeId, boolean>>;
     onSelect: (type: BuildingTypeId) => void;
     onClose: () => void;
 }) {
@@ -957,11 +1217,15 @@ function BuildMenu({
                                 </div>
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
                                     {section.items.map(item => {
-                                        const selectable = unlocked && item.status === "available" && item.type && BUILDABLE_TYPE_SET.has(item.type);
-                                        const locked = !unlocked || item.status !== "available" || !item.type || !BUILDABLE_TYPE_SET.has(item.type);
+                                        const tutorialStep = item.type ? TUTORIAL_STEPS.find(step => step.target === item.type) : undefined;
+                                        const lockedByTutorial = item.type ? tutorialLocks[item.type] ?? false : false;
+                                        const selectable = unlocked && item.status === "available" && item.type && BUILDABLE_TYPE_SET.has(item.type) && !lockedByTutorial;
+                                        const locked =
+                                            !unlocked || item.status !== "available" || !item.type || !BUILDABLE_TYPE_SET.has(item.type) || lockedByTutorial;
                                         const active = !!activeType && activeType === item.type;
                                         const meta = item.type ? BUILD_META[item.type] : undefined;
                                         const costText = meta?.cost ?? item.cost;
+                                        const lockLabel = lockedByTutorial && tutorialStep ? quests?.[tutorialStep.id]?.title ?? "Tutorial-Schritt" : null;
                                         return (
                                             <div
                                                 key={item.id}
@@ -982,6 +1246,11 @@ function BuildMenu({
                                                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>{item.effect}</div>
                                                 <div style={{ fontSize: 11, opacity: 0.65 }}>Upgrade: {item.upgrade}</div>
                                                 {costText && <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>Kosten: {costText}</div>}
+                                                {lockedByTutorial && (
+                                                    <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 4 }}>
+                                                        Gesperrt bis Schritt erledigt: {lockLabel ?? tutorialStep?.description ?? "Tutorial"}
+                                                    </div>
+                                                )}
                                                 <button
                                                     disabled={!selectable}
                                                     onClick={() => item.type && onSelect(item.type)}
@@ -996,7 +1265,7 @@ function BuildMenu({
                                                         fontWeight: 700
                                                     }}
                                                 >
-                                                    {locked ? "Gesperrt" : active ? "Aktiv" : "Bauen"}
+                                                    {lockedByTutorial ? "Tutorial gesperrt" : locked ? "Gesperrt" : active ? "Aktiv" : "Bauen"}
                                                 </button>
                                             </div>
                                         );
@@ -1024,15 +1293,67 @@ function VillagerMenu({
     onAssignWork: (villagerId: string, buildingId: string | null) => void;
     onClose: () => void;
 }) {
-    if (!open) return null;
+    const [filter, setFilter] = useState<"all" | "homeless" | "jobless" | "hungry">("all");
+    const [sort, setSort] = useState<"hunger" | "name" | "job">("hunger");
 
-    const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
-    const buildings = Object.values(st.buildings);
+    const villagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
+    const buildings = useMemo(() => Object.values(st.buildings), [st.buildings]);
 
     const homeCandidates = buildings.filter(b => b.type === "campfire" || b.type === "townhall" || b.type === "storage");
-    const workCandidates = buildings;
-
+    const workCandidates = buildings.filter(b => b.type !== "road" && b.type !== "rock" && b.type !== "tree" && b.type !== "berry_bush" && b.type !== "mushroom");
     const labelFor = (b: typeof buildings[number]) => BUILD_META[b.type]?.title ?? b.type;
+
+    const stats = useMemo(() => {
+        const hungry = villagers.filter(v => v.needs.hunger >= 0.55).length;
+        const homeless = villagers.filter(v => !v.homeBuildingId).length;
+        const jobless = villagers.filter(v => v.job === "idle").length;
+        return { total: villagers.length, hungry, homeless, jobless };
+    }, [villagers]);
+
+    const filteredVillagers = useMemo(() => {
+        switch (filter) {
+            case "hungry":
+                return villagers.filter(v => v.needs.hunger >= 0.55);
+            case "homeless":
+                return villagers.filter(v => !v.homeBuildingId);
+            case "jobless":
+                return villagers.filter(v => v.job === "idle");
+            default:
+                return villagers;
+        }
+    }, [villagers, filter]);
+
+    const sortedVillagers = useMemo(() => {
+        const copy = [...filteredVillagers];
+        const byHunger = (a: typeof copy[number], b: typeof copy[number]) => b.needs.hunger - a.needs.hunger;
+        const byName = (a: typeof copy[number], b: typeof copy[number]) => a.name.localeCompare(b.name);
+        const byJob = (a: typeof copy[number], b: typeof copy[number]) => a.job.localeCompare(b.job) || a.name.localeCompare(b.name);
+        if (sort === "name") return copy.sort(byName);
+        if (sort === "job") return copy.sort(byJob);
+        return copy.sort(byHunger);
+    }, [filteredVillagers, sort]);
+
+    const JOB_LABEL: Record<string, string> = {
+        idle: "Ohne Job",
+        gatherer: "Sammler",
+        woodcutter: "Holzfaeller",
+        builder: "Bauer",
+        researcher: "Forscher",
+        fisher: "Fischer",
+        guard: "Wache"
+    };
+
+    const JOB_COLOR: Record<string, string> = {
+        idle: "#9ca3af",
+        gatherer: "#22c55e",
+        woodcutter: "#c26d34",
+        builder: "#f97316",
+        researcher: "#6366f1",
+        fisher: "#0ea5e9",
+        guard: "#ef4444"
+    };
+
+    if (!open) return null;
 
     return (
         <div
@@ -1050,7 +1371,7 @@ function VillagerMenu({
                 style={{
                     position: "relative",
                     maxHeight: "82vh",
-                    width: "min(960px, 92vw)",
+                    width: "min(1080px, 94vw)",
                     overflow: "hidden",
                     background: THEME.panelBg,
                     borderRadius: 18,
@@ -1065,72 +1386,315 @@ function VillagerMenu({
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${THEME.panelBorder}` }}>
                     <div>
                         <div style={{ fontWeight: 800, fontSize: 16 }}>Bewohner</div>
-                        <div style={{ fontSize: 12, opacity: 0.75 }}>Zuhause und Arbeitsstaette zuweisen</div>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>Uebersicht, Zuhause und Jobs</div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            border: `1px solid ${THEME.chipBorder}`,
-                            background: THEME.chipBg,
-                            borderRadius: 10,
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            fontWeight: 700
-                        }}
-                    >
-                        Schliessen
-                    </button>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <select
+                            aria-label="Sortierung"
+                            value={sort}
+                            onChange={e => setSort(e.target.value as typeof sort)}
+                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff", fontWeight: 700, fontSize: 12 }}
+                        >
+                            <option value="hunger">Sortiere nach Hunger</option>
+                            <option value="name">Sortiere nach Name</option>
+                            <option value="job">Sortiere nach Job</option>
+                        </select>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                border: `1px solid ${THEME.chipBorder}`,
+                                background: THEME.chipBg,
+                                borderRadius: 10,
+                                padding: "8px 12px",
+                                cursor: "pointer",
+                                fontWeight: 700
+                            }}
+                        >
+                            Schliessen
+                        </button>
+                    </div>
                 </div>
 
-                <div style={{ padding: 14, overflowY: "auto", display: "grid", gap: 10 }}>
-                    {villagers.map(v => {
-                        const home = v.homeBuildingId ? st.buildings[v.homeBuildingId] : null;
-                        const work = v.assignedBuildingId ? st.buildings[v.assignedBuildingId] : null;
-                        return (
-                            <div key={v.id} style={{ border: `1px solid ${THEME.panelBorder}`, borderRadius: 12, padding: 10, background: "rgba(255,255,255,0.85)", display: "grid", gap: 6 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800 }}>
-                                    <span>{v.name}</span>
-                                    <span style={{ fontSize: 12, opacity: 0.7 }}>Job: {v.job}</span>
-                                </div>
-                                <div style={{ display: "grid", gap: 6, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                                    <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-                                        <span style={{ opacity: 0.7 }}>Zuhause</span>
-                                        <select
-                                            value={v.homeBuildingId ?? ""}
-                                            onChange={e => onAssignHome(v.id, e.target.value || null)}
-                                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff" }}
-                                        >
-                                            <option value="">Keins</option>
-                                            {homeCandidates.map(b => (
-                                                <option key={b.id} value={b.id}>
-                                                    {labelFor(b)} (#{b.id}) {b.residentIds?.length ? `- ${b.residentIds.length} drin` : ""}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {home ? labelFor(home) : "-"}</span>
-                                    </label>
-
-                                    <label style={{ display: "grid", gap: 4, fontSize: 12 }}>
-                                        <span style={{ opacity: 0.7 }}>Arbeitsstaette</span>
-                                        <select
-                                            value={v.assignedBuildingId ?? ""}
-                                            onChange={e => onAssignWork(v.id, e.target.value || null)}
-                                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff" }}
-                                        >
-                                            <option value="">Keine</option>
-                                            {workCandidates.map(b => (
-                                                <option key={b.id} value={b.id}>
-                                                    {labelFor(b)} (#{b.id}) {b.assignedVillagerIds.length ? `- ${b.assignedVillagerIds.length} zugewiesen` : ""}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {work ? labelFor(work) : "-"}</span>
-                                    </label>
-                                </div>
+                <div style={{ padding: 16, display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, minHeight: 0, flex: 1 }}>
+                    <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+                        <div
+                            style={{
+                                padding: 16,
+                                borderRadius: 16,
+                                border: `1px solid ${THEME.panelBorder}`,
+                                background: "linear-gradient(150deg, #ffe5cf, #ffd3b7)",
+                                boxShadow: THEME.panelShadow,
+                                display: "grid",
+                                gap: 10,
+                                position: "relative"
+                            }}
+                        >
+                            <div style={{ position: "absolute", left: 10, top: 10, bottom: 10, width: 4, borderRadius: 8, background: THEME.accent, opacity: 0.25 }} />
+                            <div style={{ fontWeight: 800, fontSize: 14, paddingLeft: 12 }}>Dorfstatus</div>
+                            <div style={{ display: "grid", gap: 8, paddingLeft: 12 }}>
+                                <StatusChip label="Bewohner" value={String(stats.total)} />
+                                <StatusChip label="Obdachlos" value={String(stats.homeless)} tone={stats.homeless ? "warn" : "muted"} />
+                                <StatusChip label="Ohne Job" value={String(stats.jobless)} tone={stats.jobless ? "warn" : "muted"} />
+                                <StatusChip label="Hungrig" value={String(stats.hungry)} tone={stats.hungry ? "warn" : "muted"} />
                             </div>
-                        );
-                    })}
+                        </div>
+
+                        <div
+                            style={{
+                                padding: 14,
+                                borderRadius: 14,
+                                border: `1px solid ${THEME.panelBorder}`,
+                                background: "rgba(255,255,255,0.94)",
+                                display: "grid",
+                                gap: 10,
+                                boxShadow: THEME.panelShadow
+                            }}
+                        >
+                            <div style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: 20, background: THEME.accent }} />
+                                Filter & Fokus
+                            </div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                <PillButton label="Alle" active={filter === "all"} onClick={() => setFilter("all")} />
+                                <PillButton label="Hungrig" active={filter === "hungry"} onClick={() => setFilter("hungry")} />
+                                <PillButton label="Obdachlos" active={filter === "homeless"} onClick={() => setFilter("homeless")} />
+                                <PillButton label="Ohne Job" active={filter === "jobless"} onClick={() => setFilter("jobless")} />
+                            </div>
+                            <div style={{ fontSize: 11, opacity: 0.7 }}>Wähle einen Fokus, um nur relevante Bewohner zu sehen.</div>
+                        </div>
+
+                        <div
+                            style={{
+                                padding: 12,
+                                borderRadius: 12,
+                                border: `1px solid ${THEME.panelBorder}`,
+                                background: "rgba(0,0,0,0.03)",
+                                display: "grid",
+                                gap: 6,
+                                boxShadow: THEME.panelShadow
+                            }}
+                        >
+                            <div style={{ fontWeight: 800, fontSize: 12 }}>Legende</div>
+                            <div style={{ fontSize: 11, display: "grid", gap: 4 }}>
+                                <span>Hunger Warnung ab 55%</span>
+                                <span>Krank Warnung ab 30%</span>
+                                <span>Energie zeigt verbleibende Kraft (grün ist besser)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: 10, overflowY: "auto", paddingRight: 4 }}>
+                        {sortedVillagers.map(v => {
+                            const home = v.homeBuildingId ? st.buildings[v.homeBuildingId] : null;
+                            const work = v.assignedBuildingId ? st.buildings[v.assignedBuildingId] : null;
+                            const hungerPct = Math.round(v.needs.hunger * 100);
+                            const energyPct = Math.round(v.needs.energy * 100);
+                            const illnessPct = Math.round(v.needs.illness * 100);
+                            return (
+                                <div
+                                    key={v.id}
+                                    style={{
+                                        border: `1px solid ${THEME.panelBorder}`,
+                                        borderRadius: 12,
+                                        padding: 12,
+                                        background: "rgba(255,255,255,0.92)",
+                                        boxShadow: THEME.panelShadow,
+                                        display: "grid",
+                                        gap: 10
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <div
+                                                style={{
+                                                    width: 40,
+                                                    height: 40,
+                                                    borderRadius: 12,
+                                                    background: "linear-gradient(145deg, #ffe3c5, #ffd1b3)",
+                                                    border: `1px solid ${THEME.chipBorder}`,
+                                                    display: "grid",
+                                                    placeItems: "center",
+                                                    fontWeight: 800,
+                                                    color: THEME.text
+                                                }}
+                                            >
+                                                {v.name.slice(0, 1)}
+                                            </div>
+                                            <div style={{ display: "grid", gap: 2 }}>
+                                                <div style={{ fontWeight: 800 }}>{v.name}</div>
+                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                    <span style={{ fontSize: 12, opacity: 0.7 }}>#{v.id}</span>
+                                                    <span
+                                                        style={{
+                                                            fontSize: 11,
+                                                            padding: "2px 6px",
+                                                            borderRadius: 8,
+                                                            border: `1px solid ${JOB_COLOR[v.job] ?? THEME.chipBorder}`,
+                                                            background: `${JOB_COLOR[v.job] ?? THEME.chipBorder}15`,
+                                                            color: THEME.text,
+                                                            fontWeight: 700
+                                                        }}
+                                                    >
+                                                        {JOB_LABEL[v.job] ?? v.job}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <NeedMeter label="Hunger" value={hungerPct} tone={hungerPct >= 55 ? "warn" : "ok"} />
+                                            <NeedMeter label="Energie" value={energyPct} tone="ok" inverted />
+                                            <NeedMeter label="Krank" value={illnessPct} tone={illnessPct >= 30 ? "warn" : "ok"} />
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+                                        <label style={{ display: "grid", gap: 6, fontSize: 12, background: "rgba(0,0,0,0.02)", borderRadius: 10, padding: 10, border: `1px solid ${THEME.panelBorder}` }}>
+                                            <span style={{ opacity: 0.7 }}>Zuhause</span>
+                                            <StyledSelect value={v.homeBuildingId ?? ""} onChange={value => onAssignHome(v.id, value || null)}>
+                                                <option value="">Keins</option>
+                                                {homeCandidates.map(b => (
+                                                    <option key={b.id} value={b.id}>
+                                                        {labelFor(b)} (#{b.id}) {b.residentIds?.length ? `- ${b.residentIds.length} drin` : ""}
+                                                    </option>
+                                                ))}
+                                            </StyledSelect>
+                                            <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {home ? labelFor(home) : "-"}</span>
+                                        </label>
+
+                                        <label style={{ display: "grid", gap: 6, fontSize: 12, background: "rgba(0,0,0,0.02)", borderRadius: 10, padding: 10, border: `1px solid ${THEME.panelBorder}` }}>
+                                            <span style={{ opacity: 0.7 }}>Arbeitsstaette</span>
+                                            <div style={{
+                                                borderRadius: 10,
+                                                border: `1px dashed ${THEME.panelBorder}`,
+                                                padding: "10px 12px",
+                                                background: "rgba(0,0,0,0.03)",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                gap: 8
+                                            }}>
+                                                <span style={{ fontWeight: 700 }}>{work ? labelFor(work) : "Keine"}</span>
+                                                <span style={{ fontSize: 11, opacity: 0.65 }}>Zuordnung am Gebaeude</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function PillButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: active ? `1px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                cursor: "pointer",
+                fontWeight: 700,
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                fontSize: 12
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
+function StatusChip({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "warn" }) {
+    const palette = tone === "warn" ? { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.45)" } : { bg: THEME.chipBg, border: THEME.chipBorder };
+    return (
+        <div
+            style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 10px",
+                borderRadius: 10,
+                border: `1px solid ${palette.border}`,
+                background: palette.bg,
+                fontWeight: 700,
+                fontSize: 12
+            }}
+        >
+            <span style={{ opacity: 0.7 }}>{label}</span>
+            <span>{value}</span>
+        </div>
+    );
+}
+
+function NeedMeter({ label, value, tone = "ok", inverted = false }: { label: string; value: number; tone?: "ok" | "warn"; inverted?: boolean }) {
+    const clamped = Math.max(0, Math.min(100, value));
+    const warn = tone === "warn";
+    const goodColor = inverted ? "#22c55e" : "#f97316";
+    const barColor = warn ? "#ef4444" : goodColor;
+    return (
+        <div style={{ display: "grid", gap: 4, minWidth: 70 }}>
+            <span style={{ fontSize: 11, opacity: 0.7 }}>{label}</span>
+            <div style={{ width: "100%", height: 8, borderRadius: 6, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                <div style={{ width: `${clamped}%`, height: "100%", background: barColor, transition: "width 0.2s ease" }} />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, textAlign: "right" }}>{clamped}%</span>
+        </div>
+    );
+}
+
+function ProgressBar({ value, tone = "accent" }: { value: number; tone?: "accent" | "ok" | "warn" }) {
+    const clamped = Math.max(0, Math.min(100, value));
+    const color = tone === "ok" ? "#22c55e" : tone === "warn" ? "#ef4444" : THEME.accent;
+    return (
+        <div style={{ width: "100%", height: 10, borderRadius: 8, background: "rgba(0,0,0,0.08)", overflow: "hidden", boxShadow: THEME.panelShadow, margin: "6px 0" }}>
+            <div style={{ width: `${clamped}%`, height: "100%", background: color, transition: "width 0.2s ease" }} />
+        </div>
+    );
+}
+
+function StyledSelect({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: React.ReactNode }) {
+    return (
+        <div style={{ position: "relative" }}>
+            <select
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                style={{
+                    width: "100%",
+                    padding: "10px 38px 10px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${THEME.panelBorder}`,
+                    background: "linear-gradient(145deg, #ffffff, #fff7ef)",
+                    fontWeight: 700,
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    boxShadow: THEME.panelShadow,
+                    color: THEME.text
+                }}
+            >
+                {children}
+            </select>
+            <div
+                aria-hidden
+                style={{
+                    pointerEvents: "none",
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: 12,
+                    height: 12,
+                    display: "grid",
+                    placeItems: "center"
+                }}
+            >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={THEME.text} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 5l3 3 3-3" />
+                </svg>
             </div>
         </div>
     );
@@ -1231,12 +1795,4 @@ function GoldIcon() {
     );
 }
 
-function formatClock(st: GameState) {
-    const phaseMs = st.time.msPerDay / 4;
-    const dayMs = st.time.phaseIndex * phaseMs + st.time.phaseElapsedMs;
-    const t = Math.max(0, Math.min(st.time.msPerDay, dayMs));
-    const minutesTotal = Math.floor((t / st.time.msPerDay) * 24 * 60);
-    const hh = String(Math.floor(minutesTotal / 60)).padStart(2, "0");
-    const mm = String(minutesTotal % 60).padStart(2, "0");
-    return `${hh}:${mm}`;
-}
+// FPS formatting now handled inline where displayed.

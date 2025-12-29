@@ -42,43 +42,7 @@ function runMorning(st: GameState): GameState {
 }
 
 function runDay(st: GameState): GameState {
-    const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
-    const gatherers = villagers.filter(v => v.job === "gatherer");
-
-    let next: GameState = st;
-
-    if (gatherers.length) {
-        let berriesGain = 0;
-
-        for (const v of gatherers) {
-            const work = clamp01(v.stats.work);
-            const morale = clamp01(v.stats.morale);
-            const hungerPenalty = 1 - clamp01(v.needs.hunger) * 0.6;
-            const energyPenalty = 0.5 + clamp01(v.needs.energy) * 0.5;
-
-            const perPhase = 3;
-            berriesGain += perPhase * work * morale * hungerPenalty * energyPenalty;
-        }
-
-        const add = Math.max(0, Math.floor(berriesGain));
-
-        if (add) {
-            next = {
-                ...next,
-                inventory: {
-                    ...next.inventory,
-                    berries: next.inventory.berries + add
-                },
-                events: next.events.concat({
-                    id: "resource_added",
-                    atMs: st.nowMs,
-                    payload: { resource: "berries", amount: add, source: "gatherers" }
-                })
-            };
-        }
-    }
-
-    return refreshAlerts(next);
+    return refreshAlerts(st);
 }
 
 function runEvening(st: GameState): GameState {
