@@ -1,18 +1,27 @@
 "use client";
 
 import type React from "react";
+import type { StaticImageData } from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import { getBuildingSize, getFootprintTopLeft } from "../../src/game/domains/buildings/model/buildingSizes";
 import type { BuildingTypeId, GameState, Vec2, WorldTileId } from "../../src/game/types/GameState";
+import battleTile0037 from "../../src/ui/game/textures/battle/tile_0037.png";
+import townTile0000 from "../../src/ui/game/textures/town/tile_0000.png";
+import townTile0001 from "../../src/ui/game/textures/town/tile_0001.png";
+import townTile0002 from "../../src/ui/game/textures/town/tile_0002.png";
+import townTile0025 from "../../src/ui/game/textures/town/tile_0025.png";
+import treeTextureFile from "../../src/ui/game/textures/tree.png";
+import townTile0109 from "../../src/ui/game/textures/town/tile_0109.png";
 
 const TILE_W = 64;
 const TILE_H = 32;
 const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;
 const DEG2RAD = Math.PI / 180;
-const MAX_DPR = 1.75;
-const MIN_ZOOM = 1.15;
+const MAX_DPR = 1.5;
+const MIN_ZOOM = 1.2;
+const ANIMAL_DETAIL_Z = 1.08;
 
 const TILE_COLORS: Record<WorldTileId, string> = {
     water: "#6cd4ff",
@@ -23,8 +32,19 @@ const TILE_COLORS: Record<WorldTileId, string> = {
     grass: "#9adf7f",
     forest: "#63a66b",
     meadow: "#b7f29a",
-    desert: "#f1c06b",
-    swamp: "#6fa384"
+    desert: "#f1c06b"
+};
+
+const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
+    water: [battleTile0037],
+    sand: [townTile0025],
+    rock: [townTile0109],
+    mountain: [townTile0109],
+    dirt: [townTile0025],
+    grass: [townTile0000, townTile0001, townTile0002],
+    forest: [townTile0000, townTile0001, townTile0002],
+    meadow: [townTile0000, townTile0001, townTile0002],
+    desert: [townTile0025]
 };
 
 const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
@@ -39,7 +59,6 @@ const BUILDING_COLORS: Partial<Record<BuildingTypeId, string>> = {
 };
 
 const VILLAGER_COLOR = "#1f2937";
-const GRID_COLOR = "rgba(255,255,255,0.12)";
 const ANIMAL_STYLES = {
     sheep: { body: "#f7f3e5", head: "#d8cfb6", outline: "rgba(0,0,0,0.35)" },
     cow: { body: "#d9c6a8", head: "#b39369", outline: "rgba(0,0,0,0.38)" }
@@ -57,6 +76,8 @@ type AmbientAnimal = {
     seed: number;
 };
 
+type TileTextureMap = Partial<Record<WorldTileId, ImageBitmap[]>>;
+
 export type WorldCanvasProps = {
     st: GameState;
     buildMode: BuildingTypeId | null;
@@ -73,6 +94,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [cam, setCam] = useState<Camera>({ x: 0, y: 0, z: 1 });
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
+    const [showSettings, setShowSettings] = useState(false);
+    const [showFps, setShowFps] = useState(false);
+    const [fps, setFps] = useState(0);
+    const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
+    const [treeTexture, setTreeTexture] = useState<ImageBitmap | null>(null);
+    const fpsFrames = useRef(0);
+    const fpsLast = useRef(typeof performance !== "undefined" ? performance.now() : 0);
 
     const angleDeg = 0;
 
@@ -91,6 +119,43 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     const canPlaceHover = !!(buildMode && hoverTile && canPlaceAt(st, hoverTile, buildMode));
     const meadowAnimals = useMemo(() => createMeadowAnimals(st.world, st.seed), [st.seed, st.world]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadTextures = async () => {
+            try {
+                const entries = await Promise.all(
+                    (Object.entries(TILE_TEXTURE_SOURCES) as Array<[WorldTileId, StaticImageData[]]>).map(async ([id, srcs]) => {
+                        const bitmaps = await Promise.all(srcs.map((s) => loadImageBitmap(resolveImageSrc(s))));
+                        return [id, bitmaps] as const;
+                    })
+                );
+
+                if (!cancelled) setTileTextures(Object.fromEntries(entries) as TileTextureMap);
+            } catch (err) {
+                console.warn("Failed to load tile textures", err);
+            }
+        };
+
+        loadTextures();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(treeTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setTreeTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load tree texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const minZoomForViewport = useCallback(
         (vw: number, vh: number) => Math.max(MIN_ZOOM, Math.max(vw / worldPx.w, vh / worldPx.h) * 1.08),
@@ -147,6 +212,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     }, [resize, st.world.width, st.world.height]);
 
     useEffect(() => {
+        const onToggleSettings = (e: KeyboardEvent) => {
+            if (e.code === "KeyS") {
+                e.preventDefault();
+                setShowSettings((v) => !v);
+            }
+        };
+
         const wrap = wrapRef.current;
         if (!wrap) return;
         const r = wrap.getBoundingClientRect();
@@ -156,6 +228,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             const centered = { x: (worldPx.w - vw / prev.z) / 2, y: (worldPx.h - vh / prev.z) / 2, z: prev.z };
             return clampCam(centered, vw, vh);
         });
+
+        window.addEventListener("keydown", onToggleSettings);
+        return () => window.removeEventListener("keydown", onToggleSettings);
     }, [clampCam, worldPx.w, worldPx.h]);
 
     useEffect(() => {
@@ -213,7 +288,8 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         ];
 
         const gridCorners = corners.map((p) => worldToGrid(p.wx, p.wy, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA));
-        const margin = 2;
+        const showAnimals = cam.z >= ANIMAL_DETAIL_Z;
+        const margin = 1;
         const minX = Math.max(0, Math.floor(Math.min(...gridCorners.map((g) => g.gx))) - margin);
         const maxX = Math.min(st.world.width - 1, Math.ceil(Math.max(...gridCorners.map((g) => g.gx))) + margin);
         const minY = Math.max(0, Math.floor(Math.min(...gridCorners.map((g) => g.gy))) - margin);
@@ -223,16 +299,25 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         ctx.translate(-cam.x * cam.z, -cam.y * cam.z);
         ctx.scale(cam.z, cam.z);
 
-        drawTiles(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY);
-        drawGrid(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY);
-        drawBuildings(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
-        drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        drawTiles(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, minX, maxX, minY, maxY, tileTextures);
+        drawBuildings(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, treeTexture);
+        if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
         ctx.restore();
-    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, meadowAnimals]);
+
+        fpsFrames.current += 1;
+        const now = typeof performance !== "undefined" ? performance.now() : 0;
+        const elapsed = now - fpsLast.current;
+        if (elapsed >= 400) {
+            const nextFps = elapsed > 0 ? (fpsFrames.current * 1000) / elapsed : 0;
+            fpsFrames.current = 0;
+            fpsLast.current = now;
+            setFps(nextFps);
+        }
+    }, [st, hoverTile, buildMode, canPlaceHover, cam, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, meadowAnimals, tileTextures, treeTexture]);
 
     const screenToWorld = (clientX: number, clientY: number) => {
         const wrap = wrapRef.current;
@@ -396,8 +481,99 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                     imageRendering: "auto"
                 }}
             />
+
+            {showSettings && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        padding: "14px 16px",
+                        borderRadius: 10,
+                        background: "rgba(0,0,0,0.78)",
+                        color: "#f8fafc",
+                        fontSize: 14,
+                        minWidth: 240,
+                        boxShadow: "0 12px 28px rgba(0,0,0,0.45)",
+                        backdropFilter: "blur(8px)",
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        pointerEvents: "auto",
+                        zIndex: 1000
+                    }}
+                >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <span style={{ fontWeight: 600 }}>Settings</span>
+                        <button
+                            onClick={() => setShowSettings(false)}
+                            style={{
+                                background: "none",
+                                border: "none",
+                                color: "#e2e8f0",
+                                cursor: "pointer",
+                                fontSize: 16,
+                                padding: 4
+                            }}
+                            aria-label="Close settings"
+                        >
+                            ×
+                        </button>
+                    </div>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                        <input
+                            type="checkbox"
+                            checked={showFps}
+                            onChange={(e) => setShowFps(e.target.checked)}
+                            style={{ width: 16, height: 16 }}
+                        />
+                        <span>Show FPS</span>
+                    </label>
+
+                    <div style={{ marginTop: 10, color: "#cbd5e1", fontSize: 12 }}>Shortcut: S zum Öffnen/Schließen</div>
+                </div>
+            )}
+
+            {showFps && (
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 12,
+                        left: 12,
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        background: "rgba(0,0,0,0.72)",
+                        color: "#f8fafc",
+                        fontSize: 13,
+                        fontVariantNumeric: "tabular-nums",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        boxShadow: "0 8px 16px rgba(0,0,0,0.35)",
+                        pointerEvents: "none",
+                        zIndex: 1001
+                    }}
+                >
+                    FPS: {fps.toFixed(1)}
+                </div>
+            )}
         </div>
     );
+}
+
+function resolveImageSrc(src: StaticImageData | string): string {
+    return typeof src === "string" ? src : src.src;
+}
+
+function loadImageBitmap(src: string): Promise<ImageBitmap> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => {
+            createImageBitmap(img)
+                .then(resolve)
+                .catch((err) => reject(err));
+        };
+        img.onerror = () => reject(new Error(`Failed to load texture ${src}`));
+    });
 }
 
 function worldToGrid(wx: number, wy: number, originX: number, originY: number, cosA: number, sinA: number) {
@@ -591,54 +767,47 @@ function drawTiles(
     minX: number,
     maxX: number,
     minY: number,
-    maxY: number
+    maxY: number,
+    textures: TileTextureMap | null
 ) {
     for (let y = minY; y <= maxY; y++) {
         for (let x = minX; x <= maxX; x++) {
             const tile = st.world.tiles[y * st.world.width + x];
             if (!tile) continue;
             const { sx, sy } = tileToScreen(x, y, originX, originY, cosA, sinA);
+            const texList = textures?.[tile.id];
+            if (texList?.length) {
+                const pick = texList.length === 1 ? 0 : Math.floor(hashFloat(st.seed, x + 7, y + 13) * texList.length) % texList.length;
+                const tex = texList[pick];
+                const dx = Math.round(sx);
+                const dy = Math.round(sy);
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(dx, dy + HALF_H);
+                ctx.lineTo(dx + HALF_W, dy);
+                ctx.lineTo(dx + TILE_W, dy + HALF_H);
+                ctx.lineTo(dx + HALF_W, dy + TILE_H);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(tex, dx, dy, TILE_W, TILE_H);
+                ctx.restore();
+                continue;
+            }
             const base = TILE_COLORS[tile.id] || "#7ea";
             drawTileDiamond(ctx, sx, sy, base, "rgba(0,0,0,0.2)", "rgba(0,0,0,0.12)");
         }
     }
 }
 
-function drawGrid(
+function drawBuildings(
     ctx: CanvasRenderingContext2D,
     st: GameState,
     originX: number,
     originY: number,
     cosA: number,
     sinA: number,
-    minX: number,
-    maxX: number,
-    minY: number,
-    maxY: number
+    treeTexture: ImageBitmap | null
 ) {
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 0.8;
-
-    for (let y = minY; y <= maxY + 1; y++) {
-        const { sx: sx0, sy: sy0 } = tileToScreen(minX, y, originX, originY, cosA, sinA);
-        const { sx: sx1, sy: sy1 } = tileToScreen(maxX + 1, y, originX, originY, cosA, sinA);
-        ctx.beginPath();
-        ctx.moveTo(sx0, sy0 + HALF_H);
-        ctx.lineTo(sx1, sy1 + HALF_H);
-        ctx.stroke();
-    }
-
-    for (let x = minX; x <= maxX + 1; x++) {
-        const { sx: sx0, sy: sy0 } = tileToScreen(x, minY, originX, originY, cosA, sinA);
-        const { sx: sx1, sy: sy1 } = tileToScreen(x, maxY + 1, originX, originY, cosA, sinA);
-        ctx.beginPath();
-        ctx.moveTo(sx0 + HALF_W, sy0);
-        ctx.lineTo(sx1 + HALF_W, sy1 + TILE_H);
-        ctx.stroke();
-    }
-}
-
-function drawBuildings(ctx: CanvasRenderingContext2D, st: GameState, originX: number, originY: number, cosA: number, sinA: number) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
 
@@ -656,7 +825,7 @@ function drawBuildings(ctx: CanvasRenderingContext2D, st: GameState, originX: nu
         }
 
         if (b.type === "tree") {
-            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA);
+            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA, treeTexture);
             continue;
         }
 
@@ -823,8 +992,15 @@ function drawTreeTile(
     originX: number,
     originY: number,
     cosA: number,
-    sinA: number
+    sinA: number,
+    treeTexture: ImageBitmap | null
 ) {
+    const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
+    if (treeTexture) {
+        ctx.drawImage(treeTexture, sx, sy, TILE_W, TILE_H);
+        return;
+    }
+
     const r = 0.26;
     const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
 

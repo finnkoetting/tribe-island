@@ -38,8 +38,7 @@ export type WorldTileId =
     | "grass"
     | "forest"
     | "meadow"
-    | "desert"
-    | "swamp";
+    | "desert";
 
 export type WorldTile = {
     id: WorldTileId;

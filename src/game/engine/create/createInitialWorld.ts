@@ -90,7 +90,6 @@ const distToCoast = (side: CoastSide, x: number, y: number, w: number, h: number
 
 type LandScores = {
     desert: number;
-    swamp: number;
     forest: number;
     mountain: number;
 };
@@ -233,7 +232,6 @@ export function createInitialWorld(seed = Date.now()): World {
     const targetOceanTotal = targetWater + targetSand;
 
     const targetDesert = Math.round(totalTiles * 0.08); // weniger Wüste
-    const targetSwamp = Math.round(totalTiles * 0.13);
     const targetForest = Math.round(totalTiles * 0.31);
     const targetMeadow = Math.round(totalTiles * 0.22);
     const targetMountain = Math.round(totalTiles * 0.04);
@@ -285,7 +283,6 @@ export function createInitialWorld(seed = Date.now()): World {
                 biomeNoise,
                 scores: {
                     desert: (1 - moisture) * 0.75 + biomeNoise * 0.12,
-                    swamp: moisture + (0.4 - Math.abs(biomeNoise - 0.4)) * 0.25,
                     forest: biomeNoise + moisture * 0.25,
                     mountain: mountainScore
                 }
@@ -317,7 +314,6 @@ export function createInitialWorld(seed = Date.now()): World {
 
     let pool = remainingLand;
     pool = assignBiome(pool, targetDesert, "desert", (s) => s.desert);
-    pool = assignBiome(pool, targetSwamp, "swamp", (s) => s.swamp);
     pool = assignBiome(pool, targetMountain, "mountain", (s) => s.mountain);
     pool = assignBiome(pool, targetForest, "forest", (s) => s.forest);
     pool = assignBiome(pool, targetMeadow, "meadow", () => 0.5);
@@ -332,7 +328,6 @@ export function createInitialWorld(seed = Date.now()): World {
     ensureLake(tiles, width, height, coastBandMap, landScores);
 
     limitBiomeRegions(tiles, width, height, "desert", 3);
-    limitBiomeRegions(tiles, width, height, "swamp", 3);
     limitBiomeRegions(tiles, width, height, "mountain", 4);
     limitBiomeRegions(tiles, width, height, "forest", 3);
     limitBiomeRegions(tiles, width, height, "meadow", 3);
