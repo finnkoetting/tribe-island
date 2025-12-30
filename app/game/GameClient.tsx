@@ -1006,10 +1006,10 @@ function BuildingModal({
     // Levelbasierte Aufgaben, immer gerade Anzahl
     const level = building.level || 1;
     const baseTasks = [
-        { id: "short", label: "Schnelle Runde", desc: "Kleine Sammelrunde", duration: 30, required: 1 },
-        { id: "medium", label: "Gruppenrunde", desc: "Koordinierte Sammlertour", duration: 60, required: 2 },
-        { id: "long", label: "Ausdauernde Runde", desc: "Lange Sammelrunde mit besserer Ausbeute", duration: 120, required: 2 },
-        { id: "epic", label: "Expedition", desc: "Große Expedition für viele Ressourcen", duration: 240, required: 4 }
+        { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
+        { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
+        { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
+        { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
     ];
     const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
     const tasks = baseTasks.slice(0, numTasks);
@@ -1025,16 +1025,11 @@ function BuildingModal({
         setSelectedTask(null);
     };
 
-    // Auftrag starten (prüft benötigte Bewohner)
+    // Auftrag starten
     const handleStartTask = () => {
-        if (!selectedTask) return;
-        const t = tasks.find(x => x.id === selectedTask);
-        const need = t?.required ?? 0;
-        if (assigned.length < need) {
-            alert(`Benötigt ${need} zugewiesene Bewohner. (${assigned.length} zugewiesen)`);
-            return;
+        if (selectedTask) {
+            setActiveTask(selectedTask);
         }
-        setActiveTask(selectedTask);
     };
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
@@ -1047,8 +1042,6 @@ function BuildingModal({
     // Upgrade-Logik (Platzhalter)
     const canUpgrade = true;
     const upgradeCost = "10 Holz, 5 Stein";
-
-    const requiredForSelected = selectedTask ? (tasks.find(t => t.id === selectedTask)?.required ?? 0) : 0;
 
     return (
         <ModalContainer
@@ -1097,7 +1090,6 @@ function BuildingModal({
                     >
                         <div style={{ fontWeight: 900 }}>{task.label}</div>
                         <div style={{ fontSize: 12, opacity: 0.8 }}>{task.desc}</div>
-                        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 6 }}>Benötigt: {task.required ?? 0} Bewohner</div>
                     </button>
                 ))}
             </div>
@@ -1106,21 +1098,11 @@ function BuildingModal({
             {!activeTask && selectedTask && (
                 <div style={{ margin: "0 0 18px 0", textAlign: "center" }}>
                     <button
-                        disabled={assigned.length < requiredForSelected}
-                        style={{
-                            ...MODAL_STYLE.button,
-                            fontSize: 15,
-                            minWidth: 160,
-                            opacity: assigned.length < requiredForSelected ? 0.5 : 1,
-                            cursor: assigned.length < requiredForSelected ? "not-allowed" : "pointer"
-                        }}
+                        style={{ ...MODAL_STYLE.button, fontSize: 15, minWidth: 160 }}
                         onClick={handleStartTask}
                     >
                         Auftrag starten
                     </button>
-                    {assigned.length < requiredForSelected && (
-                        <div style={{ fontSize: 12, color: "#ffb4a2", marginTop: 8 }}>Benötigt {requiredForSelected} zugewiesene Bewohner, aktuell {assigned.length}.</div>
-                    )}
                 </div>
             )}
 
