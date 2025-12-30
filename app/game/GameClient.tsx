@@ -282,6 +282,7 @@ export default function GameClient() {
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
     const [buildMenuOpen, setBuildMenuOpen] = useState(false);
     const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
+    const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [fps, setFps] = useState(0);
@@ -427,6 +428,14 @@ export default function GameClient() {
         });
     };
 
+    const handleStartBuildingTask = (buildingId: string, durationMs: number) => {
+        setSt(prev => {
+            const next = engine.commands.startBuildingTask(prev, buildingId, durationMs);
+            queueSave(next);
+            return next;
+        });
+    };
+
     const queueSave = (state: GameState) => {
         const now = Date.now();
         const MIN_SAVE_INTERVAL_MS = 5000;
@@ -544,13 +553,14 @@ export default function GameClient() {
                     onClose={() => setBuildingModalOpen(false)}
                     onCollect={handleCollect}
                     onAssignWork={handleAssignWork}
-                    onOpenAssignVillager={() => setVillagerMenuOpen(true)}
+                    onOpenAssignVillager={() => setAssignVillagerOpen(true)}
+                    onStartTask={handleStartBuildingTask}
                 />
 
                 {/* AssignVillagerModal: separate modal for assigning/removing villagers */}
                 <AssignVillagerModal
-                    open={villagerMenuOpen}
-                    onClose={() => setVillagerMenuOpen(false)}
+                    open={assignVillagerOpen}
+                    onClose={() => setAssignVillagerOpen(false)}
                     villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
                     assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
                     onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
@@ -990,7 +1000,8 @@ function BuildingModal({
     onClose,
     onCollect,
     onAssignWork,
-    onOpenAssignVillager
+    onOpenAssignVillager,
+    onStartTask
 }: {
     open: boolean;
     building: GameState["buildings"][string] | null;
@@ -999,6 +1010,7 @@ function BuildingModal({
     onCollect: (id: string) => void;
     onAssignWork: (villagerId: string, buildingId: string | null) => void;
     onOpenAssignVillager: () => void;
+    onStartTask: (buildingId: string, durationMs: number) => void;
 }) {
     if (!open || !building) return null;
 
@@ -1025,11 +1037,13 @@ function BuildingModal({
         setSelectedTask(null);
     };
 
-    // Auftrag starten
+    // Auftrag starten -> invoke engine command
     const handleStartTask = () => {
-        if (selectedTask) {
-            setActiveTask(selectedTask);
-        }
+        if (!selectedTask) return;
+        const t = tasks.find(x => x.id === selectedTask);
+        if (!t || !building) return;
+        onStartTask(building.id, t.duration * 1000);
+        setActiveTask(selectedTask);
     };
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
@@ -1054,6 +1068,8 @@ function BuildingModal({
             }
             headerAction={
                 <button
+                    type="button"
+                    aria-label="Bewohner zuweisen"
                     title="Bewohner zuweisen"
                     style={{
                         fontSize: 20,
@@ -1063,8 +1079,14 @@ function BuildingModal({
                         padding: "6px 8px"
                     }}
                     onClick={onOpenAssignVillager}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onOpenAssignVillager();
+                        }
+                    }}
                 >
-                    <span role="img" aria-label="Villager">🧑‍🌾</span>
+                    <span role="img" aria-hidden={false} aria-label="Villager">🧑‍🌾</span>
                 </button>
             }
         >
