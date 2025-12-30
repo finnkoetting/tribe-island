@@ -37,7 +37,8 @@ const makeRock = (id: string, pos: Vec2): Building => ({
         progress: 0,
         duration: 0,
         blocked: false,
-        collectable: false
+        collectable: false,
+        started: false
     },
     output: null
 });

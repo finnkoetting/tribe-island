@@ -98,9 +98,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
-    const [treeTexture, setTreeTexture] = useState<ImageBitmap | null>(null);
+    const [treeTextures, setTreeTextures] = useState<ImageBitmap[] | null>(null);
     const [rockTexture, setRockTexture] = useState<ImageBitmap | null>(null);
-    const [villagerTexture, setVillagerTexture] = useState<ImageBitmap | null>(null);
+    const [villagerTextures, setVillagerTextures] = useState<{
+        male?: ImageBitmap | null;
+        female?: ImageBitmap | null;
+        default?: ImageBitmap | null;
+    } | null>(null);
     const [cowTexture, setCowTexture] = useState<ImageBitmap | null>(null);
     const [sheepTexture, setSheepTexture] = useState<ImageBitmap | null>(null);
     const [dogTexture, setDogTexture] = useState<ImageBitmap | null>(null);
@@ -162,11 +166,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        getTextureBitmap("objects/tree")
-            .then((bmp) => {
-                if (!cancelled && bmp) setTreeTexture(bmp);
+        Promise.all([getTextureBitmap("objects/tree/1"), getTextureBitmap("objects/tree/2")])
+            .then((bmps) => {
+                if (cancelled) return;
+                const valid = bmps.filter((b): b is ImageBitmap => Boolean(b));
+                if (valid.length) setTreeTextures(valid);
             })
-            .catch((err) => console.warn("Failed to load tree texture", err));
+            .catch((err) => console.warn("Failed to load tree textures", err));
         return () => {
             cancelled = true;
         };
@@ -186,11 +192,20 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        getTextureBitmap("objects/villager")
-            .then((bmp) => {
-                if (!cancelled && bmp) setVillagerTexture(bmp);
+        Promise.all([
+            getTextureBitmap("objects/villager/female/1"),
+            getTextureBitmap("objects/villager/male/1"),
+            getTextureBitmap("objects/villager")
+        ])
+            .then(([femaleBmp, maleBmp, defBmp]) => {
+                if (cancelled) return;
+                const obj: { male?: ImageBitmap | null; female?: ImageBitmap | null; default?: ImageBitmap | null } = {};
+                if (femaleBmp) obj.female = femaleBmp;
+                if (maleBmp) obj.male = maleBmp;
+                if (defBmp) obj.default = defBmp;
+                if (Object.keys(obj).length) setVillagerTextures(obj);
             })
-            .catch((err) => console.warn("Failed to load villager texture", err));
+            .catch((err) => console.warn("Failed to load villager textures", err));
         return () => {
             cancelled = true;
         };
@@ -448,7 +463,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             worldPx.originY,
             worldPx.cosA,
             worldPx.sinA,
-            treeTexture,
+            treeTextures,
             rockTexture,
             berryBushTexture,
             mushroomTexture,
@@ -457,7 +472,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
         if (showAnimals) drawGameAnimals(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, dogTexture);
-        drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTexture);
+        drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTextures);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
 
@@ -484,9 +499,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         worldPx.sinA,
         meadowAnimals,
         tileTextures,
-        treeTexture,
+        treeTextures,
         rockTexture,
-        villagerTexture,
+        villagerTextures,
         berryBushTexture,
         mushroomTexture,
         campfireTexture,
@@ -1103,7 +1118,7 @@ function drawBuildings(
     originY: number,
     cosA: number,
     sinA: number,
-    treeTexture: ImageBitmap | null,
+    treeTextures: ImageBitmap[] | null,
     rockTexture: ImageBitmap | null,
     berryBushTexture: ImageBitmap | null,
     mushroomTexture: ImageBitmap | null,
@@ -1127,7 +1142,7 @@ function drawBuildings(
         }
 
         if (b.type === "tree") {
-            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA, treeTexture);
+            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA, treeTextures, b.id);
             continue;
         }
 
@@ -1415,11 +1430,19 @@ function drawTreeTile(
     originY: number,
     cosA: number,
     sinA: number,
-    treeTexture: ImageBitmap | null
+    treeTextures: ImageBitmap[] | null,
+    buildingId?: string
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
-    if (treeTexture) {
-        drawIsoSprite(ctx, treeTexture, sx, sy, { heightScale: 1.6, widthScale: 0.9 });
+    if (treeTextures && treeTextures.length) {
+        const id = buildingId ?? `${pos.x},${pos.y}`;
+        let h = 0;
+        for (let i = 0; i < id.length; i++) {
+            h = (h * 31 + id.charCodeAt(i)) >>> 0;
+        }
+        const idx = h % treeTextures.length;
+        const tex = treeTextures[idx];
+        drawIsoSprite(ctx, tex, sx, sy, { heightScale: 1.6, widthScale: 0.9 });
         return;
     }
 
@@ -1564,7 +1587,7 @@ function drawVillagers(
     originY: number,
     cosA: number,
     sinA: number,
-    villagerTexture: ImageBitmap | null
+    villagerTextures: { male?: ImageBitmap | null; female?: ImageBitmap | null; default?: ImageBitmap | null } | null
 ) {
     const villagers = Object.values(st.villagers).filter((v) => v.state === "alive");
     if (!villagers.length) return;
@@ -1624,8 +1647,14 @@ function drawVillagers(
             const cx = sx + HALF_W;
             const cy = sy + HALF_H * 0.6;
 
-            if (villagerTexture) {
-                drawIsoSprite(ctx, villagerTexture, sx, sy, {
+            let tex: ImageBitmap | null | undefined = null;
+            if (villagerTextures) {
+                if (v.gender === "female") tex = villagerTextures.female ?? villagerTextures.default ?? null;
+                else tex = villagerTextures.male ?? villagerTextures.default ?? null;
+            }
+
+            if (tex) {
+                drawIsoSprite(ctx, tex, sx, sy, {
                     heightScale: 0.9,
                     widthScale: 0.85,
                     offsetY: -1,

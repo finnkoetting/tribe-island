@@ -8,12 +8,16 @@ const manifest: Record<string, LoaderFn> = {
 
     "objects/stone": () => import("./objects/stone.png"),
     "objects/villager": () => import("./objects/villager.png"),
+    "objects/villager/female/1": () => import("./objects/villager/female/1.png"),
+    "objects/villager/male/1": () => import("./objects/villager/male/1.png"),
     "objects/cow": () => import("./objects/animals/cow.png"),
-    "objects/dog": () => import("./objects/dog.svg"),
+    "objects/dog": () => import("./objects/animals/dog.png"),
     "objects/sheep": () => import("./objects/animals/sheep.png"),
     "objects/berrybush": () => import("./objects/berrybush.png"),
     "objects/mushroom": () => import("./objects/mushroom.png"),
-    "objects/tree": () => import("./objects/tree.png")
+    "objects/tree": () => import("./objects/tree.png"),
+    "objects/tree/1": () => import("./objects/tree/1.png"),
+    "objects/tree/2": () => import("./objects/tree/2.png")
 };
 
 const bitmapCache: Record<string, Promise<ImageBitmap | null>> = {};
