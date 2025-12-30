@@ -143,6 +143,7 @@ export type TaskState = {
     duration: number;
     blocked: boolean;
     collectable: boolean;
+    started: boolean;
 };
 
 export type Building = {

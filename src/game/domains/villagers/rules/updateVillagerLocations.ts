@@ -211,6 +211,20 @@ export function updateVillagerLocations(st: GameState, dtMs: number): GameState 
             if (nearest) {
                 const dist = Math.hypot(nearest.pos.x - nextVillager.pos.x, nearest.pos.y - nextVillager.pos.y);
                 if (dist <= HARVEST_RADIUS + 0.05) {
+                    // Mark assigned building task as started when worker reaches resource.
+                    if (v.assignedBuildingId && buildings[v.assignedBuildingId]) {
+                        const b = buildings[v.assignedBuildingId];
+                        if (!b.task.started && b.task.kind !== "none") {
+                            buildings = {
+                                ...buildings,
+                                [v.assignedBuildingId]: {
+                                    ...b,
+                                    task: { ...b.task, started: true }
+                                }
+                            };
+                        }
+                    }
+
                     const wander = idleWander(nearest.pos, v.id, st.nowMs);
                     nextVillager = { ...nextVillager, pos: wander };
                     idleWanderApplied = true;

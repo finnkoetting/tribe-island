@@ -38,7 +38,8 @@ export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Bu
             progress: 0,
             duration: taskDuration,
             blocked: false,
-            collectable: false
+            collectable: false,
+            started: false
         },
         output
     };

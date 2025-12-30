@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FC } from "react";
 import * as engine from "../../src/game/engine";
+import { clearSavedGame, loadGameState, saveGameState } from "../../src/game/persistence/storage/local";
+import { loadSeed, saveSeed } from "../../src/game/persistence/storage/seed";
+import { loadCamera, saveCamera } from "../../src/game/persistence/storage/camera";
 import { BUILDING_COSTS, formatCost } from "../../src/game/domains/buildings/model/buildingCosts";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import { getBuildingSize } from "../../src/game/domains/buildings/model/buildingSizes";
@@ -249,9 +252,18 @@ const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: 
 ];
 
 export default function GameClient() {
-    const [st, setSt] = useState<GameState>(() => engine.create.createGame());
+    const [seed, setSeed] = useState<number>(() => {
+        if (typeof window === "undefined") return Date.now();
+        return loadSeed() ?? Date.now();
+    });
+    const [st, setSt] = useState<GameState>(() => engine.create.createGame(seed));
+    const [initialCamera] = useState(() => (typeof window === "undefined" ? null : loadCamera()));
+    const cameraSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastRef = useRef<number | null>(null);
     const rafRef = useRef<number | null>(null);
+    const lastSavedRef = useRef<number>(0);
+    const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+    const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
 
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
     const [buildMenuOpen, setBuildMenuOpen] = useState(false);
@@ -259,6 +271,26 @@ export default function GameClient() {
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [fps, setFps] = useState(0);
+
+    useEffect(() => {
+        const loaded = loadGameState();
+        if (loaded) {
+            setSt(loaded.state);
+            if (loaded.state.seed) {
+                setSeed(loaded.state.seed);
+                saveSeed(loaded.state.seed);
+            }
+            const now = Date.now();
+            setLastLoadedAt(now);
+            if (loaded.savedAt) {
+                lastSavedRef.current = loaded.savedAt;
+                setLastSavedAt(loaded.savedAt);
+            }
+        }
+        if (!loaded) {
+            saveSeed(seed);
+        }
+    }, [seed]);
 
     useEffect(() => {
         const loop = (t: number) => {
@@ -275,6 +307,11 @@ export default function GameClient() {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
         };
     }, []);
+
+    useEffect(() => () => {
+        if (cameraSaveTimeout.current) clearTimeout(cameraSaveTimeout.current);
+    }, []);
+
 
     const aliveVillagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
     const hoveredBuilding = useMemo(() => {
@@ -324,11 +361,19 @@ export default function GameClient() {
     };
 
     const handleAssignHome = (villagerId: string, buildingId: string | null) => {
-        setSt(prev => engine.commands.assignVillagerHome(prev, villagerId, buildingId));
+        setSt(prev => {
+            const next = engine.commands.assignVillagerHome(prev, villagerId, buildingId);
+            queueSave(next);
+            return next;
+        });
     };
 
     const handleAssignWork = (villagerId: string, buildingId: string | null) => {
-        setSt(prev => engine.commands.assignVillagerToBuilding(prev, villagerId, buildingId));
+        setSt(prev => {
+            const next = engine.commands.assignVillagerToBuilding(prev, villagerId, buildingId);
+            queueSave(next);
+            return next;
+        });
     };
 
     const handleTileClick = (pos: Vec2) => {
@@ -349,12 +394,58 @@ export default function GameClient() {
                     next = engine.commands.placeBuilding(next, buildMode, pos);
                 }
             }
+            queueSave(next);
             return next;
         });
     };
 
     const handleCollect = (buildingId: string) => {
-        setSt(prev => engine.commands.collectFromBuilding(prev, buildingId));
+        setSt(prev => {
+            const next = engine.commands.collectFromBuilding(prev, buildingId);
+            queueSave(next);
+            return next;
+        });
+    };
+
+    const queueSave = (state: GameState) => {
+        const now = Date.now();
+        const MIN_SAVE_INTERVAL_MS = 5000;
+        if (now - lastSavedRef.current < MIN_SAVE_INTERVAL_MS) return;
+        const savedAt = saveGameState(state);
+        if (savedAt) {
+            lastSavedRef.current = savedAt;
+            setLastSavedAt(savedAt);
+        }
+    };
+
+    const handleManualSave = () => {
+        queueSave(st);
+    };
+
+    const resetWithSeed = (nextSeed: number) => {
+        saveSeed(nextSeed);
+        const fresh = engine.create.createGame(nextSeed);
+        clearSavedGame();
+        lastSavedRef.current = 0;
+        setLastSavedAt(null);
+        setLastLoadedAt(null);
+        lastRef.current = null;
+        setBuildMode(null);
+        setBuildMenuOpen(false);
+        setVillagerMenuOpen(false);
+        setBuildingModalOpen(false);
+        setHoverTile(null);
+        setSeed(nextSeed);
+        setSt(fresh);
+    };
+
+    const handleResetGame = () => {
+        resetWithSeed(seed);
+    };
+
+    const handleRerollSeed = () => {
+        const nextSeed = Date.now();
+        resetWithSeed(nextSeed);
     };
 
     const findBuildingAt = (state: GameState, pos: Vec2) => {
@@ -391,6 +482,11 @@ export default function GameClient() {
                     onHover={setHoverTile}
                     onCancelBuild={() => setBuildMode(null)}
                     onCollectBuilding={handleCollect}
+                    initialCamera={initialCamera ?? undefined}
+                    onCameraChange={cam => {
+                        if (cameraSaveTimeout.current) clearTimeout(cameraSaveTimeout.current);
+                        cameraSaveTimeout.current = setTimeout(() => saveCamera(cam), 400);
+                    }}
                     onFpsUpdate={setFps}
                 />
             </div>
@@ -468,6 +564,93 @@ function TopLeftHud({ st, fps }: { st: GameState; fps: number }) {
             </div>
         </div>
     );
+}
+
+function SaveControls({ seed, lastSavedAt, lastLoadedAt, onSave, onReset, onRerollSeed }: { seed: number; lastSavedAt: number | null; lastLoadedAt: number | null; onSave: () => void; onReset: () => void; onRerollSeed: () => void }) {
+    return (
+        <div
+            style={{
+                position: "absolute",
+                top: 16,
+                left: "50%",
+                transform: "translateX(-50%)",
+                pointerEvents: "auto",
+                zIndex: 30
+            }}
+        >
+            <div
+                style={{
+                    display: "grid",
+                    gap: 6,
+                    padding: "10px 12px",
+                    background: "rgba(255, 238, 210, 0.3)",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,206,140,0.6)",
+                    boxShadow: "0 10px 24px rgba(40,20,8,0.18)",
+                    backdropFilter: "blur(8px)"
+                }}
+            >
+                <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                        onClick={onSave}
+                        style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,206,140,0.9)",
+                            background: "linear-gradient(135deg, rgba(255,210,150,0.92), rgba(240,170,90,0.9))",
+                            cursor: "pointer",
+                            fontWeight: 800,
+                            boxShadow: THEME.accentGlow
+                        }}
+                    >
+                        Speichern
+                    </button>
+                    <button
+                        onClick={onReset}
+                        style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,206,140,0.6)",
+                            background: "rgba(40,20,8,0.14)",
+                            color: THEME.text,
+                            cursor: "pointer",
+                            fontWeight: 800,
+                            boxShadow: THEME.panelShadow
+                        }}
+                    >
+                        Neues Spiel
+                    </button>
+                    <button
+                        onClick={onRerollSeed}
+                        style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: "1px solid rgba(255,206,140,0.9)",
+                            background: "linear-gradient(135deg, rgba(200,230,255,0.9), rgba(120,170,240,0.85))",
+                            cursor: "pointer",
+                            fontWeight: 800,
+                            boxShadow: THEME.panelShadow
+                        }}
+                    >
+                        Neuer Seed
+                    </button>
+                </div>
+                <div style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.85 }}>
+                    <span>Seed: {seed}</span>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <span>Gespeichert: {formatClock(lastSavedAt)}</span>
+                        <span>Geladen: {formatClock(lastLoadedAt)}</span>
+                        <span style={{ opacity: 0.7 }}>Autospeicher: ~0.5s bei Aenderungen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function formatClock(ts: number | null) {
+    if (!ts) return "—";
+    return new Date(ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"]; onSelectBuild: (type: BuildingTypeId) => void }) {

@@ -19,8 +19,11 @@ import mountainTile1 from "../../src/ui/game/textures/terrain/mountain/1.png";
 import mountainTile2 from "../../src/ui/game/textures/terrain/mountain/2.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
 import campfireTextureFile from "../../src/ui/game/textures/buildings/lvl1_campfire.png";
+import collectorTextureFile from "../../src/ui/game/textures/buildings/lvl1_collectorpointpng.png";
 import stoneTextureFile from "../../src/ui/game/textures/objects/stone.png";
 import villagerTextureFile from "../../src/ui/game/textures/objects/villager.png";
+import cowTextureFile from "../../src/ui/game/textures/objects/cow.png";
+import sheepTextureFile from "../../src/ui/game/textures/objects/sheep.png";
 import berryBushTextureFile from "../../src/ui/game/textures/objects/berrybush.png";
 import mushroomTextureFile from "../../src/ui/game/textures/objects/mushroom.png";
 import treeTextureFile from "../../src/ui/game/textures/objects/tree.png";
@@ -88,24 +91,29 @@ export type WorldCanvasProps = {
     onCancelBuild?: () => void;
     onCollectBuilding?: (id: string) => void;
     onFpsUpdate?: (fps: number) => void;
+    initialCamera?: Camera;
+    onCameraChange?: (cam: Camera) => void;
 };
 
-export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate }: WorldCanvasProps) {
+export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange }: WorldCanvasProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const spaceDownRef = useRef(false);
 
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
-    const [cam, setCam] = useState<Camera>({ x: 0, y: 0, z: 1 });
+    const [cam, setCam] = useState<Camera>(initialCamera ?? { x: 0, y: 0, z: 1 });
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTexture, setTreeTexture] = useState<ImageBitmap | null>(null);
     const [rockTexture, setRockTexture] = useState<ImageBitmap | null>(null);
     const [villagerTexture, setVillagerTexture] = useState<ImageBitmap | null>(null);
+    const [cowTexture, setCowTexture] = useState<ImageBitmap | null>(null);
+    const [sheepTexture, setSheepTexture] = useState<ImageBitmap | null>(null);
     const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
     const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
     const [campfireTexture, setCampfireTexture] = useState<ImageBitmap | null>(null);
+    const [collectorTexture, setCollectorTexture] = useState<ImageBitmap | null>(null);
     const fpsFrames = useRef(0);
     const fpsLast = useRef(0);
 
@@ -194,6 +202,30 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
+        loadImageBitmap(resolveImageSrc(cowTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setCowTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load cow texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(sheepTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setSheepTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load sheep texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
         loadImageBitmap(resolveImageSrc(berryBushTextureFile))
             .then((bmp) => {
                 if (!cancelled) setBerryBushTexture(bmp);
@@ -223,6 +255,18 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 if (!cancelled) setCampfireTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load campfire texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        loadImageBitmap(resolveImageSrc(collectorTextureFile))
+            .then((bmp) => {
+                if (!cancelled) setCollectorTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load collector hut texture", err));
         return () => {
             cancelled = true;
         };
@@ -373,9 +417,10 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             rockTexture,
             berryBushTexture,
             mushroomTexture,
-            campfireTexture
+            campfireTexture,
+            collectorTexture
         );
-        if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+        if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTexture);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
@@ -409,6 +454,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         berryBushTexture,
         mushroomTexture,
         campfireTexture,
+        collectorTexture,
+        cowTexture,
+        sheepTexture,
         onFpsUpdate
     ]);
 
@@ -542,10 +590,14 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const nextX = beforeX - mx / nextZ;
         const nextY = beforeY - my / nextZ;
 
-        setCam(clampCam({ x: nextX, y: nextY, z: nextZ }, vw, vh));
+        setCam((prev) => clampCam({ x: nextX, y: nextY, z: nextZ }, vw, vh));
     };
 
     const cursor = drag.active ? "grabbing" : buildMode ? (canPlaceHover ? "pointer" : "not-allowed") : "default";
+
+    useEffect(() => {
+        if (onCameraChange) onCameraChange(cam);
+    }, [cam, onCameraChange]);
 
     const buildingOverlays = useMemo(() => {
         if (!viewSize.w || !viewSize.h) return [] as Array<{ id: string; type: BuildingTypeId; x: number; y: number; progress: number; collectable: boolean; blocked: boolean; output: GameState["buildings"][string]["output"] | null }>;
@@ -757,7 +809,9 @@ function drawAnimals(
     originX: number,
     originY: number,
     cosA: number,
-    sinA: number
+    sinA: number,
+    cowTexture: ImageBitmap | null,
+    sheepTexture: ImageBitmap | null
 ) {
     if (!animals.length) return;
 
@@ -768,6 +822,16 @@ function drawAnimals(
         const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
         const cx = sx + HALF_W;
         const cy = sy + HALF_H * 0.6;
+
+        if (animal.kind === "cow" && cowTexture) {
+            drawIsoSprite(ctx, cowTexture, sx, sy, { heightScale: 1.1, widthScale: 0.9, offsetY: -2 });
+            continue;
+        }
+
+        if (animal.kind === "sheep" && sheepTexture) {
+            drawIsoSprite(ctx, sheepTexture, sx, sy, { heightScale: 1.0, widthScale: 0.9, offsetY: -1 });
+            continue;
+        }
 
         const style = ANIMAL_STYLES[animal.kind];
         const bodyR = animal.kind === "cow" ? 5 : 4;
@@ -941,7 +1005,8 @@ function drawBuildings(
     rockTexture: ImageBitmap | null,
     berryBushTexture: ImageBitmap | null,
     mushroomTexture: ImageBitmap | null,
-    campfireTexture: ImageBitmap | null
+    campfireTexture: ImageBitmap | null,
+    collectorTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
@@ -985,6 +1050,20 @@ function drawBuildings(
                 const centerY = b.pos.y + size.h / 2;
                 const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
                 drawIsoSprite(ctx, campfireTexture, sx, sy, { heightScale: 2, widthScale: 1.1, offsetY: -6 });
+            }
+            continue;
+        }
+
+        if (b.type === "gather_hut") {
+            drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
+
+            if (collectorTexture) {
+                const centerX = b.pos.x + size.w / 2;
+                const centerY = b.pos.y + size.h / 2;
+                const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
+                drawIsoSprite(ctx, collectorTexture, sx, sy, { heightScale: 2.6, widthScale: 1, offsetY: -10 });
+            } else {
+                fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
             }
             continue;
         }

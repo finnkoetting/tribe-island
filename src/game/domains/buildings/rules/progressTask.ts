@@ -16,6 +16,7 @@ export function progressBuildingTasks(st: GameState, dtMs: number): GameState {
         if (b.task.blocked) continue;
         if (b.task.collectable) continue;
         if (!b.assignedVillagerIds.length) continue;
+        if (!b.task.started) continue;
 
         const dur = Math.max(1, b.task.duration);
         const p = Math.min(dur, b.task.progress + dtMs);
