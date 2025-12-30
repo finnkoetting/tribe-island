@@ -12,7 +12,7 @@ const FACING_SCREEN_EPS = 0.1; // minimum projected delta to consider flipping
 const HARVEST_YIELD: Partial<Record<Building["type"], { resource: keyof GameState["inventory"]; amount: number }>> = {
     tree: { resource: "wood", amount: 3 },
     berry_bush: { resource: "berries", amount: 2 },
-    mushroom: { resource: "berries", amount: 1 }
+    mushroom: { resource: "mushrooms", amount: 1 }
 };
 
 function buildingAnchorPos(building: Building): Vec2 {

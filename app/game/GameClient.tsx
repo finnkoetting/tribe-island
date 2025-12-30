@@ -6,10 +6,11 @@ import * as engine from "../../src/game/engine";
 import { clearSavedGame, loadGameState, saveGameState } from "../../src/game/persistence/storage/local";
 import { loadSeed, saveSeed } from "../../src/game/persistence/storage/seed";
 import { loadCamera, saveCamera } from "../../src/game/persistence/storage/camera";
-import { BUILDING_COSTS, formatCost } from "../../src/game/domains/buildings/model/buildingCosts";
+import { BUILDING_COSTS, formatCost, canAffordCost } from "../../src/game/domains/buildings/model/buildingCosts";
+import { getLevelSpec } from "../../src/game/domains/buildings/model/buildingLevels";
 import { canPlaceAt } from "../../src/game/domains/world/rules/canPlaceAt";
 import { getBuildingSize } from "../../src/game/domains/buildings/model/buildingSizes";
-import type { BuildingTypeId, GameState, QuestId, Vec2 } from "../../src/game/types/GameState";
+import type { BuildingTypeId, GameState, QuestId, Vec2, ResourceId } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
 import { UI_THEME as THEME, BUILDING_COLORS } from "../../src/ui/theme";
 import { ModalContainer } from "../../src/ui/components/ModalContainer";
@@ -88,7 +89,7 @@ const BUILD_SECTIONS: BuildSection[] = [
                 type: "gather_hut",
                 title: "Sammlerhuette",
                 size: "2x2",
-                effect: "Beeren sammeln",
+                effect: "Nahrung herstellen",
                 upgrade: "+Slots, bessere Tools",
                 status: "available",
                 cost: "20 Holz"
@@ -265,6 +266,31 @@ const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: 
     { id: "gold", label: "Gold", Icon: GoldIcon, color: "#f59e0b" }
 ];
 
+// Helper: prettify resource id fallback
+function prettifyResource(id: string) {
+    if (id === "mushrooms") return "Pilze";
+    if (id === "wheat") return "Weizen";
+    if (id === "rope") return "Seile";
+    return id.replace(/_/g, " ");
+}
+
+// Map resource -> producers (building types or world nodes)
+const resourceProducers: Partial<Record<string, string[]>> = {
+    wood: ["tree", "sawmill"],
+    berries: ["berry_bush", "gather_hut"],
+    mushrooms: ["mushroom", "gather_hut"],
+    planks: ["sawmill"]
+};
+
+function producerTitle(type: string) {
+    // Use BUILD_META if available
+    if ((BUILD_META as any)[type]) return (BUILD_META as any)[type].title;
+    if (type === "tree") return "Baum (kann gefällt werden)";
+    if (type === "berry_bush") return "Beerenbusch (wild)";
+    if (type === "mushroom") return "Pilzstelle (wild)";
+    return type;
+}
+
 export default function GameClient() {
     const [seed, setSeed] = useState<number>(() => {
         if (typeof window === "undefined") return Date.now();
@@ -284,6 +310,9 @@ export default function GameClient() {
     const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
     const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
+    const [missingModalOpen, setMissingModalOpen] = useState(false);
+    const [missingResources, setMissingResources] = useState<Record<string, { need: number; have: number }>>({});
+    const [showProducers, setShowProducers] = useState<Record<string, boolean>>({});
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [fps, setFps] = useState(0);
 
@@ -428,6 +457,14 @@ export default function GameClient() {
         });
     };
 
+    const handleUpgrade = (buildingId: string) => {
+        setSt(prev => {
+            const next = engine.commands.upgradeBuilding(prev, buildingId);
+            queueSave(next);
+            return next;
+        });
+    };
+
     const queueSave = (state: GameState) => {
         const now = Date.now();
         const MIN_SAVE_INTERVAL_MS = 5000;
@@ -546,7 +583,69 @@ export default function GameClient() {
                     onCollect={handleCollect}
                     onAssignWork={handleAssignWork}
                     onOpenAssignVillager={() => setAssignVillagerOpen(true)}
+                    onUpgrade={handleUpgrade}
+                    onStartTask={(buildingId, taskId) => {
+                        setSt(prev => {
+                            const next = engine.commands.startBuildingTask(prev, buildingId, taskId);
+                            queueSave(next);
+                            return next;
+                        });
+                    }}
+                    onShowMissing={(missing) => {
+                        setMissingResources(missing);
+                        setMissingModalOpen(true);
+                    }}
                 />
+
+                {missingModalOpen && (
+                    <ModalContainer onClose={() => setMissingModalOpen(false)} title={<span>Fehlende Ressourcen</span>}>
+                        <div style={{ display: "grid", gap: 10 }}>
+                            <div>Dir fehlen die folgenden Ressourcen für dieses Upgrade/Auftrag:</div>
+                            <div style={{ display: "grid", gap: 6 }}>
+                                {Object.entries(missingResources).map(([res, v]) => {
+                                    const label = (RES_ORDER.find(r => r.id === res as any)?.label) ?? prettifyResource(res);
+                                    const producers = resourceProducers[res as ResourceId] ?? [];
+                                    const visible = !!showProducers[res];
+                                    return (
+                                        <div key={res} style={{ padding: 8, background: MODAL_STYLE.card.background, borderRadius: 8, border: MODAL_STYLE.card.border }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div style={{ fontWeight: 800 }}>{label}</div>
+                                                <div style={{ opacity: 0.9 }}>{v.need} benötigt · vorhanden {v.have}</div>
+                                            </div>
+                                            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                                                <button
+                                                    onClick={() => setShowProducers(s => ({ ...s, [res]: !s[res] }))}
+                                                    style={{ ...MODAL_STYLE.button, fontSize: 13, padding: "8px 12px" }}
+                                                >
+                                                    Ressourcen beschaffen
+                                                </button>
+                                            </div>
+                                            {visible && (
+                                                <div style={{ marginTop: 8, padding: 8, background: "rgba(0,0,0,0.12)", borderRadius: 8 }}>
+                                                    <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 700 }}>Geeignete Orte / Gebäude:</div>
+                                                    {producers.length ? (
+                                                        <div style={{ display: "grid", gap: 6 }}>
+                                                            {producers.map(p => (
+                                                                <div key={p} style={{ fontSize: 13 }}>
+                                                                    {producerTitle(p)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: 13, opacity: 0.85 }}>Keine bekannten Gebäude; suche in der Welt nach Rohvorkommen.</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+                                <button style={{ ...MODAL_STYLE.button }} onClick={() => setMissingModalOpen(false)}>Schließen</button>
+                            </div>
+                        </div>
+                    </ModalContainer>
+                )}
 
                 {/* AssignVillagerModal: separate modal for assigning/removing villagers */}
                 <AssignVillagerModal
@@ -991,7 +1090,10 @@ function BuildingModal({
     onClose,
     onCollect,
     onAssignWork,
-    onOpenAssignVillager
+    onOpenAssignVillager,
+    onUpgrade,
+    onStartTask,
+    onShowMissing
 }: {
     open: boolean;
     building: GameState["buildings"][string] | null;
@@ -1000,6 +1102,9 @@ function BuildingModal({
     onCollect: (id: string) => void;
     onAssignWork: (villagerId: string, buildingId: string | null) => void;
     onOpenAssignVillager: () => void;
+    onUpgrade: (id: string) => void;
+    onStartTask: (buildingId: string, taskId: string) => void;
+    onShowMissing: (missing: Record<ResourceId, { need: number; have: number }>) => void;
 }) {
     if (!open || !building) return null;
 
@@ -1009,18 +1114,21 @@ function BuildingModal({
     let tasks: Array<{ id: string; label: string; desc: string; duration: number }> = [];
 
     if (building.type === "gather_hut") {
+        // Show tasks reflecting the design you provided
         const baseTasks = [
-            { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
-            { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
-            { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
-            { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
+            { id: "pick_mushrooms", label: "Pilze pflücken", desc: "+1 Pilz", duration: 60 * 5 },
+            { id: "pick_berries", label: "Beeren sammeln", desc: "+2 Beeren", duration: 60 * 10 },
+            { id: "fruit_salad", label: "Fruchtsalat zubereiten", desc: "+4 Nahrung; -2 Beeren; -1 Pilz", duration: 60 * 30 },
+            { id: "vorratskorb", label: "Vorratskorb packen", desc: "+6 Nahrung; -3 Beeren; -2 Pilz", duration: 120 * 60 }
         ];
-        const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
-        tasks = baseTasks.slice(0, numTasks);
+        const maxTasks = Math.min(baseTasks.length, level + 1); // unlock more tasks with level
+        tasks = baseTasks.slice(0, maxTasks);
     } else if (building.type === "townhall") {
-        tasks = [{ id: "research", label: "Forschung starten", desc: "Wissen +1", duration: 120 }];
+        tasks = [{ id: "research", label: "Dorfauftrag: Grund-Jobzuweisung", desc: "Jobs & Aufträge freischalten", duration: 120 }];
     } else if (building.type === "sawmill") {
-        tasks = [{ id: "produce", label: "Holz verarbeiten", desc: "Bretter +4", duration: 90 }];
+        tasks = [{ id: "produce", label: "Holz verarbeiten", desc: "+Bretter", duration: 90 }];
+    } else if (building.type === "campfire") {
+        tasks = [{ id: "day_watch", label: "Tageswache", desc: "-2 Nahrung; +1 Moral (alle)", duration: 60 }];
     } else {
         tasks = [];
     }
@@ -1038,9 +1146,11 @@ function BuildingModal({
 
     // Auftrag starten
     const handleStartTask = () => {
-        if (selectedTask) {
-            setActiveTask(selectedTask);
-        }
+        if (!selectedTask || !building) return;
+        const taskId = selectedTask;
+        onStartTask(building.id, taskId);
+        setActiveTask(selectedTask);
+        setSelectedTask(null);
     };
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
@@ -1050,9 +1160,11 @@ function BuildingModal({
         .filter(v => v.state === "alive");
     const available = villagers.filter(v => !building.assignedVillagerIds.includes(v.id));
 
-    // Upgrade-Logik (Platzhalter)
-    const canUpgrade = true;
-    const upgradeCost = "10 Holz, 5 Stein";
+    // Upgrade-Logik: compute next level spec and cost
+    const nextSpec = getLevelSpec(building.type, (building.level || 1) + 1);
+    const canUpgrade = Boolean(nextSpec);
+    const upgradeCost = nextSpec ? formatCost(nextSpec.cost ?? {}) : "Keine weiteren Upgrades";
+    const canPay = Boolean(nextSpec) ? canAffordCost(st.inventory, nextSpec!.cost ?? {}) : false;
 
     return (
         <ModalContainer
@@ -1089,7 +1201,7 @@ function BuildingModal({
         >
 
             {/* Auftragsauswahl */}
-            <div style={{ display: "flex", gap: 12, margin: "0 0 10px 0" }}>
+            <div style={{ display: "grid", gap: 12, margin: "0 0 15px 0", flexDirection: "row", justifyContent: "center", gridTemplateColumns: "repeat(2, minmax(120px, 1fr))", gridAutoRows: "min-content" }}>
                 {tasks.map(task => (
                     <button
                         key={task.id}
@@ -1131,8 +1243,19 @@ function BuildingModal({
             {canUpgrade && (
                 <div style={{ marginTop: 18, textAlign: "center" }}>
                     <button
-                        style={{ ...MODAL_STYLE.button, fontSize: 16, minWidth: 180 }}
-                        onClick={() => alert("Upgrade kommt bald!")}
+                        style={{ ...MODAL_STYLE.button, fontSize: 16, minWidth: 180, opacity: canPay ? 1 : 0.9, cursor: "pointer" }}
+                        onClick={() => {
+                            if (!building) return;
+                            if (canPay) return onUpgrade(building.id);
+                            // compute missing
+                            const cost = nextSpec?.cost ?? {};
+                            const missing: Record<string, { need: number; have: number }> = {};
+                            for (const [r, amt] of Object.entries(cost)) {
+                                const have = (st.inventory as any)[r] ?? 0;
+                                if ((amt ?? 0) > have) missing[r] = { need: (amt ?? 0) - have, have };
+                            }
+                            onShowMissing(missing as Record<ResourceId, { need: number; have: number }>);
+                        }}
                     >
                         Gebäude upgraden ({upgradeCost})
                     </button>

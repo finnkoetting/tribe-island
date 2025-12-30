@@ -57,6 +57,9 @@ export function createGame(seed = Date.now()): GameState {
             fish: 0,
             fibers: 0,
             planks: 200,
+            wheat: 0,
+            rope: 0,
+            mushrooms: 0,
             medicine: 0,
             knowledge: 0,
             gold: 0

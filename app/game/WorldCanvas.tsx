@@ -1142,7 +1142,7 @@ function drawBuildings(
         }
 
         if (b.type === "tree") {
-            drawTreeTile(ctx, b.pos, originX, originY, cosA, sinA, treeTextures, b.id);
+            drawTreeTile(ctx, b.pos, originX, originY - 12.5, cosA, sinA, treeTextures, b.id);
             continue;
         }
 

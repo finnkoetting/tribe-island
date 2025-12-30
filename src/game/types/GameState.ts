@@ -70,6 +70,9 @@ export type ResourceId =
     | "fish"
     | "fibers"
     | "planks"
+    | "wheat"
+    | "rope"
+    | "mushrooms"
     | "medicine"
     | "knowledge"
     | "gold";
@@ -163,6 +166,7 @@ export type TaskState = {
     blocked: boolean;
     collectable: boolean;
     started: boolean;
+    taskId?: string;
 };
 
 export type Building = {
