@@ -9,6 +9,7 @@ const manifest: Record<string, LoaderFn> = {
     "objects/stone": () => import("./objects/stone.png"),
     "objects/villager": () => import("./objects/villager.png"),
     "objects/cow": () => import("./objects/cow.png"),
+    "objects/dog": () => import("./objects/dog.svg"),
     "objects/sheep": () => import("./objects/sheep.png"),
     "objects/berrybush": () => import("./objects/berrybush.png"),
     "objects/mushroom": () => import("./objects/mushroom.png"),

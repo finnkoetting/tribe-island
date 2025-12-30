@@ -428,14 +428,6 @@ export default function GameClient() {
         });
     };
 
-    const handleStartBuildingTask = (buildingId: string, durationMs: number) => {
-        setSt(prev => {
-            const next = engine.commands.startBuildingTask(prev, buildingId, durationMs);
-            queueSave(next);
-            return next;
-        });
-    };
-
     const queueSave = (state: GameState) => {
         const now = Date.now();
         const MIN_SAVE_INTERVAL_MS = 5000;
@@ -554,7 +546,6 @@ export default function GameClient() {
                     onCollect={handleCollect}
                     onAssignWork={handleAssignWork}
                     onOpenAssignVillager={() => setAssignVillagerOpen(true)}
-                    onStartTask={handleStartBuildingTask}
                 />
 
                 {/* AssignVillagerModal: separate modal for assigning/removing villagers */}
@@ -1000,8 +991,7 @@ function BuildingModal({
     onClose,
     onCollect,
     onAssignWork,
-    onOpenAssignVillager,
-    onStartTask
+    onOpenAssignVillager
 }: {
     open: boolean;
     building: GameState["buildings"][string] | null;
@@ -1010,21 +1000,30 @@ function BuildingModal({
     onCollect: (id: string) => void;
     onAssignWork: (villagerId: string, buildingId: string | null) => void;
     onOpenAssignVillager: () => void;
-    onStartTask: (buildingId: string, durationMs: number) => void;
 }) {
     if (!open || !building) return null;
 
     const meta = BUILD_META[building.type];
-    // Levelbasierte Aufgaben, immer gerade Anzahl
+    // Tasks depend on building type
     const level = building.level || 1;
-    const baseTasks = [
-        { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
-        { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
-        { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
-        { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
-    ];
-    const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
-    const tasks = baseTasks.slice(0, numTasks);
+    let tasks: Array<{ id: string; label: string; desc: string; duration: number }> = [];
+
+    if (building.type === "gather_hut") {
+        const baseTasks = [
+            { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
+            { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
+            { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
+            { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
+        ];
+        const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
+        tasks = baseTasks.slice(0, numTasks);
+    } else if (building.type === "townhall") {
+        tasks = [{ id: "research", label: "Forschung starten", desc: "Wissen +1", duration: 120 }];
+    } else if (building.type === "sawmill") {
+        tasks = [{ id: "produce", label: "Holz verarbeiten", desc: "Bretter +4", duration: 90 }];
+    } else {
+        tasks = [];
+    }
 
     // Task-State: null = kein Auftrag aktiv
     const [activeTask, setActiveTask] = useState<string | null>(null);
@@ -1037,13 +1036,11 @@ function BuildingModal({
         setSelectedTask(null);
     };
 
-    // Auftrag starten -> invoke engine command
+    // Auftrag starten
     const handleStartTask = () => {
-        if (!selectedTask) return;
-        const t = tasks.find(x => x.id === selectedTask);
-        if (!t || !building) return;
-        onStartTask(building.id, t.duration * 1000);
-        setActiveTask(selectedTask);
+        if (selectedTask) {
+            setActiveTask(selectedTask);
+        }
     };
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");

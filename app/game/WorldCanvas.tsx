@@ -103,6 +103,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [villagerTexture, setVillagerTexture] = useState<ImageBitmap | null>(null);
     const [cowTexture, setCowTexture] = useState<ImageBitmap | null>(null);
     const [sheepTexture, setSheepTexture] = useState<ImageBitmap | null>(null);
+    const [dogTexture, setDogTexture] = useState<ImageBitmap | null>(null);
     const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
     const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
     const [campfireTexture, setCampfireTexture] = useState<ImageBitmap | null>(null);
@@ -214,6 +215,18 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 if (!cancelled && bmp) setSheepTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load sheep texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("objects/dog")
+            .then((bmp) => {
+                if (!cancelled && bmp) setDogTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load dog texture", err));
         return () => {
             cancelled = true;
         };
@@ -443,6 +456,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             collectorTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
+        if (showAnimals) drawGameAnimals(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, dogTexture);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTexture);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
@@ -1625,7 +1639,56 @@ function drawVillagers(
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
+            // Draw small name label above villager (smaller)
+            if (v.name) {
+                const name = String(v.name);
+                ctx.font = "8px Space Grotesk, Segoe UI, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                const textX = cx;
+                const textY = cy - 6;
+
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "rgba(0,0,0,0.5)";
+                ctx.strokeText(name, textX, textY);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(name, textX, textY);
+            }
         });
+    }
+}
+
+function drawGameAnimals(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number,
+    dogTexture: ImageBitmap | null
+) {
+    const animals = Object.values(st.animals || {}).filter(a => a.state !== "dead");
+    if (!animals.length) return;
+
+    for (const a of animals) {
+        const { sx, sy } = tileToScreen(a.pos.x, a.pos.y, originX, originY, cosA, sinA);
+        const cx = sx + HALF_W;
+        const cy = sy + HALF_H * 0.6;
+
+        if (a.type === "dog") {
+            if (dogTexture) {
+                drawIsoSprite(ctx, dogTexture, sx, sy, { heightScale: 0.9, widthScale: 0.9, offsetY: -1 });
+            } else {
+                ctx.fillStyle = "#8B5E3C";
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 4.5, 3.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "rgba(0,0,0,0.35)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
     }
 }
 

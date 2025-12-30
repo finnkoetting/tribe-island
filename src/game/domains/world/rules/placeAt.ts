@@ -21,10 +21,19 @@ export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Bu
             ? ({ resource: "berries", amount: 6 } as const)
             : type === "sawmill"
             ? ({ resource: "planks", amount: 4 } as const)
+            : type === "townhall"
+            ? ({ resource: "knowledge", amount: 1 } as const)
             : null;
 
-    const taskKind = type === "gather_hut" || type === "sawmill" ? "produce" : "none";
-    const taskDuration = type === "gather_hut" ? 60000 : type === "sawmill" ? 90000 : 0;
+    const taskKind =
+        type === "gather_hut" || type === "sawmill"
+            ? "produce"
+            : type === "townhall"
+            ? "research"
+            : "none";
+
+    const taskDuration =
+        type === "gather_hut" ? 60000 : type === "sawmill" ? 90000 : type === "townhall" ? 120000 : 0;
 
     return {
         id,

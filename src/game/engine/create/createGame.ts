@@ -1,10 +1,12 @@
 import { GameState, GameSpeed } from "../../types/GameState";
 import { createInitialWorld } from "./createInitialWorld";
 import { createInitialVillagers } from "./createInitialVillagers";
+import { createInitialAnimals } from "./createInitialAnimals";
 import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
 import { spawnBerryBushes } from "../../domains/world/rules/spawnBerryBushes";
 import { spawnMushrooms } from "../../domains/world/rules/spawnMushrooms";
+import { spawnForestDogs } from "../../domains/world/rules/spawnForestDogs";
 
 const MS_PER_DAY = 30 * 60 * 1000;
 
@@ -24,11 +26,13 @@ const randInt = (rng: () => number, min: number, max: number) => Math.floor(rng(
 export function createGame(seed = Date.now()): GameState {
     const world = createInitialWorld(seed);
     const villagers = createInitialVillagers();
+    const animals = createInitialAnimals();
 
     const rng = mulberry32(seed ^ 0x9e3779b9);
     const initialRockCount = 5 + randInt(rng, 0, 1);
     const initialBerryCount = 10 + randInt(rng, 0, 4);
     const initialMushroomCount = 6 + randInt(rng, 0, 3);
+    const initialDogCount = 1; // start with exactly one dog
 
     const base: GameState = {
         version: 1,
@@ -61,6 +65,7 @@ export function createGame(seed = Date.now()): GameState {
         buildings: {},
 
         villagers,
+        animals,
 
         quests: {
             tutorial_home: { id: "tutorial_home", title: "Baue das Rathaus", done: false, progress: 0, goal: 1, locked: false },
@@ -89,7 +94,8 @@ export function createGame(seed = Date.now()): GameState {
             rocksNextDay: 0,
             treesNextDay: 0,
             berriesNextDay: 0,
-            mushroomsNextDay: 0
+            mushroomsNextDay: 0,
+            dogsNextDay: 0
         },
 
         flags: {
@@ -104,11 +110,13 @@ export function createGame(seed = Date.now()): GameState {
     next = spawnForestTrees(next, forestTreeTarget, rng, { targetFillRatio: FOREST_TREE_FILL_RATIO });
     next = spawnBerryBushes(next, initialBerryCount, rng);
     next = spawnMushrooms(next, initialMushroomCount, rng);
+    next = spawnForestDogs(next, initialDogCount, rng);
 
     const nextRockDay = base.time.day + randInt(rng, 1, 2);
     const nextTreeDay = base.time.day + randInt(rng, 1, 2);
     const nextBerryDay = base.time.day + randInt(rng, 1, 2);
     const nextMushroomDay = base.time.day + randInt(rng, 1, 2);
+    const nextDogDay = base.time.day + 20; // spawn one new dog every 20 in-game days
 
     return {
         ...next,
@@ -116,7 +124,8 @@ export function createGame(seed = Date.now()): GameState {
             rocksNextDay: nextRockDay,
             treesNextDay: nextTreeDay,
             berriesNextDay: nextBerryDay,
-            mushroomsNextDay: nextMushroomDay
+            mushroomsNextDay: nextMushroomDay,
+            dogsNextDay: nextDogDay
         }
     };
 }
