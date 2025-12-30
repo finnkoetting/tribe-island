@@ -68,5 +68,14 @@ function getWorkCapacity(type: GameState["buildings"][string]["type"], level: nu
         if (level === 2) return 2;
         return 1; // level 1 default
     }
+    if (type === "sawmill") {
+        if (level >= 3) return 3;
+        if (level === 2) return 2;
+        return 1;
+    }
+    if (type === "campfire") {
+        if (level >= 2) return 2;
+        return 1;
+    }
     return Infinity;
 }

@@ -22,7 +22,7 @@ export function assignVillagerHome(st: GameState, villagerId: string, buildingId
         const nextB = buildings[buildingId];
         const current = nextB.residentIds ?? [];
         const already = current.includes(villagerId);
-        const capacity = getHomeCapacity(nextB.type);
+        const capacity = getHomeCapacity(nextB.type, nextB.level);
         if (already || current.length < capacity) {
             buildings = {
                 ...buildings,
@@ -52,7 +52,14 @@ export function assignVillagerHome(st: GameState, villagerId: string, buildingId
     };
 }
 
-function getHomeCapacity(type: GameState["buildings"][string]["type"]): number {
+function getHomeCapacity(type: GameState["buildings"][string]["type"], level = 1): number {
     if (type === "townhall") return 1; // Only one resident allowed in townhall
+    if (type === "sleep_hut") {
+        if (level >= 5) return 6;
+        if (level === 4) return 5;
+        if (level === 3) return 4;
+        if (level === 2) return 3;
+        return 2;
+    }
     return Infinity;
 }

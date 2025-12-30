@@ -51,12 +51,12 @@ export function createGame(seed = Date.now()): GameState {
         world,
 
         inventory: {
-            wood: 20,
-            berries: 15,
-            stone: 0,
+            wood: 200,
+            berries: 150,
+            stone: 200,
             fish: 0,
             fibers: 0,
-            planks: 0,
+            planks: 200,
             medicine: 0,
             knowledge: 0,
             gold: 0
@@ -68,9 +68,36 @@ export function createGame(seed = Date.now()): GameState {
         animals,
 
         quests: {
-            tutorial_home: { id: "tutorial_home", title: "Baue das Rathaus", done: false, progress: 0, goal: 1, locked: false },
-            tutorial_food: { id: "tutorial_food", title: "Entzuende ein Lagerfeuer", done: false, progress: 0, goal: 1, locked: true },
-            tutorial_research: { id: "tutorial_research", title: "Errichte eine Sammlerhuette", done: false, progress: 0, goal: 1, locked: true },
+            tutorial_home: {
+                id: "tutorial_home",
+                title: "Baue das Rathaus 🏛️",
+                description: "Errichte das Rathaus, damit die Dorfbewohner ein Zuhause und Organisation bekommen.",
+                hint: "Wähle einen freien Platz und baue ein Rathaus. Du brauchst Holz und Steine.",
+                done: false,
+                progress: 0,
+                goal: 1,
+                locked: false
+            },
+            tutorial_food: {
+                id: "tutorial_food",
+                title: "Mach ein Lagerfeuer 🔥",
+                description: "Ein Lagerfeuer wärmt die Dorfbewohner und ermöglicht einfaches Kochen.",
+                hint: "Stelle sicher, dass du Holz in der Inventarliste hast, dann platziere ein Lagerfeuer.",
+                done: false,
+                progress: 0,
+                goal: 1,
+                locked: true
+            },
+            tutorial_research: {
+                id: "tutorial_research",
+                title: "Errichte eine Sammlerhütte 🔍",
+                description: "Die Sammlerhütte bringt regelmäßige Ressourcen und hilft dem Dorf zu wachsen.",
+                hint: "Platziere die Sammlerhütte in der Nähe von Beerenbüschen oder Pilzen.",
+                done: false,
+                progress: 0,
+                goal: 1,
+                locked: true
+            },
             survive_first_crisis: { id: "survive_first_crisis", title: "Erste Krise ueberleben", done: false, progress: 0, goal: 1, locked: false }
         },
 

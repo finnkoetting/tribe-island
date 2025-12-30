@@ -143,6 +143,7 @@ export type BuildingTypeId =
     | "townhall"
     | "gather_hut"
     | "campfire"
+    | "sleep_hut"
     | "storage"
     | "watchpost"
     | "sawmill"
@@ -221,6 +222,10 @@ export type QuestId =
 export type QuestState = {
     id: QuestId;
     title: string;
+    /** Optional longer description shown in UI */
+    description?: string;
+    /** Short hint or tip to help the player */
+    hint?: string;
     done: boolean;
     progress: number;
     goal: number;

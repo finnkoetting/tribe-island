@@ -6,6 +6,7 @@ const SIZES: Record<BuildingTypeId, Footprint> = {
     townhall: { w: 3, h: 3 },
     campfire: { w: 2, h: 2 },
     gather_hut: { w: 2, h: 2 },
+    sleep_hut: { w: 2, h: 2 },
     sawmill: { w: 3, h: 2 },
     storage: { w: 2, h: 2 },
     watchpost: { w: 2, h: 2 },

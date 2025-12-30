@@ -581,13 +581,15 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     };
 
     const handleMouseDown = (ev: React.MouseEvent) => {
-        if (ev.button === 2 || (ev.button === 0 && spaceDownRef.current)) {
+        // Start panning with left mouse button (button === 0), unless we're in build mode
+        // In build mode we still want to place on left-click immediately.
+        if (ev.button === 0 && !buildMode) {
             ev.preventDefault();
             startPan(ev.clientX, ev.clientY);
             return;
         }
 
-        if (ev.button === 0) {
+        if (ev.button === 0 && buildMode) {
             const tile = getTileFromClient(ev.clientX, ev.clientY);
             if (!tile) return;
 
