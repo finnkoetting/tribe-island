@@ -177,6 +177,8 @@ export type Building = {
     assignedVillagerIds: Id[];
     residentIds?: Id[];
     task: TaskState;
+    /** Optional visual / variant index (1-based) to pick texture and quantity */
+    variant?: number;
     output?: {
         resource: ResourceId;
         amount: number;

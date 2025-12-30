@@ -46,24 +46,33 @@ export function collectFromBuilding(st: GameState, buildingId: string): GameStat
 
     // If building has an explicit output resource, collect normally.
     if (b.output) {
+        const newInventory = {
+            ...st.inventory,
+            [b.output.resource]: st.inventory[b.output.resource] + b.output.amount
+        };
+
+        // For discrete natural resources (mushrooms/rocks), remove the building after harvest.
+        const removable = b.type === "mushroom" || b.type === "rock";
+
+        const newBuildings = { ...st.buildings };
+        if (removable) {
+            delete newBuildings[buildingId];
+        } else {
+            newBuildings[buildingId] = {
+                ...b,
+                task: {
+                    ...b.task,
+                    progress: 0,
+                    collectable: false,
+                    taskId: undefined
+                }
+            };
+        }
+
         const next = {
             ...st,
-            inventory: {
-                ...st.inventory,
-                [b.output.resource]: st.inventory[b.output.resource] + b.output.amount
-            },
-            buildings: {
-                ...st.buildings,
-                [buildingId]: {
-                    ...b,
-                    task: {
-                        ...b.task,
-                        progress: 0,
-                        collectable: false,
-                        taskId: undefined
-                    }
-                }
-            },
+            inventory: newInventory,
+            buildings: newBuildings,
             events: st.events.concat({
                 id: "resource_added",
                 atMs: st.nowMs,

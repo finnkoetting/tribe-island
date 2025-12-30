@@ -307,8 +307,6 @@ export default function GameClient() {
     const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
 
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
-    const [buildMenuOpen, setBuildMenuOpen] = useState(false);
-    const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
     const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [missingModalOpen, setMissingModalOpen] = useState(false);
@@ -404,8 +402,6 @@ export default function GameClient() {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(prev => (prev === type ? null : type));
-        setBuildMenuOpen(false);
-        setVillagerMenuOpen(false);
     };
 
     const handleAssignHome = (villagerId: string, buildingId: string | null) => {
@@ -490,8 +486,6 @@ export default function GameClient() {
         setLastLoadedAt(null);
         lastRef.current = null;
         setBuildMode(null);
-        setBuildMenuOpen(false);
-        setVillagerMenuOpen(false);
         setBuildingModalOpen(false);
         setHoverTile(null);
         setSeed(nextSeed);
@@ -530,8 +524,7 @@ export default function GameClient() {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(type);
-        setBuildMenuOpen(false);
-        setVillagerMenuOpen(false);
+        // Build modal removed — keep buildMode set
     };
 
     return (
@@ -565,16 +558,7 @@ export default function GameClient() {
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
-                <BuildMenu
-                    open={buildMenuOpen}
-                    sections={BUILD_SECTIONS}
-                    activeType={buildMode}
-                    unlocks={unlocks}
-                    quests={st.quests}
-                    tutorialLocks={tutorialLocks}
-                    onSelect={handleSelectBuild}
-                    onClose={() => setBuildMenuOpen(false)}
-                />
+                {/* Build menu removed */}
                 <BuildingModal
                     open={buildingModalOpen && st.selection.kind === "building" && Boolean(st.buildings[st.selection.id])}
                     building={st.selection.kind === "building" ? st.buildings[st.selection.id] : null}
@@ -656,21 +640,13 @@ export default function GameClient() {
                     onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
                     onRemove={vid => handleAssignWork(vid, null)}
                 />
-                <VillagerMenu
-                    open={villagerMenuOpen}
-                    st={st}
-                    onClose={() => setVillagerMenuOpen(false)}
-                    onAssignHome={handleAssignHome}
-                    onAssignWork={handleAssignWork}
-                />
+                {/* Villager menu removed */}
                 <BottomHud
                     st={st}
                     setSt={setSt}
                     buildMode={buildMode}
-                    buildMenuOpen={buildMenuOpen}
-                    onToggleBuildMenu={() => setBuildMenuOpen(prev => !prev)}
-                    villagerMenuOpen={villagerMenuOpen}
-                    onToggleVillagerMenu={() => setVillagerMenuOpen(prev => !prev)}
+                    onToggleBuildMenu={() => setBuildMode(null)}
+                    /* villager menu removed */
                     onCancelBuild={() => setBuildMode(null)}
                     villagerCount={aliveVillagers.length}
                     onCloseBuildingModal={() => setBuildingModalOpen(false)}
@@ -1376,7 +1352,6 @@ function BottomHud({
     st,
     setSt,
     buildMode,
-    buildMenuOpen,
     onToggleBuildMenu,
     villagerMenuOpen,
     onToggleVillagerMenu,
@@ -1388,10 +1363,9 @@ function BottomHud({
     st: GameState;
     setSt: React.Dispatch<React.SetStateAction<GameState>>;
     buildMode: BuildingTypeId | null;
-    buildMenuOpen: boolean;
     onToggleBuildMenu: () => void;
-    villagerMenuOpen: boolean;
-    onToggleVillagerMenu: () => void;
+    villagerMenuOpen?: boolean;
+    onToggleVillagerMenu?: () => void;
     onCancelBuild: () => void;
     villagerCount: number;
     onCloseBuildingModal: () => void;
@@ -1413,12 +1387,46 @@ function BottomHud({
                 background: THEME.overlayGradient
             }}
         >
-            <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "35px" }}>
-                <VillagerButton active={villagerMenuOpen} onClick={onToggleVillagerMenu} />
-                <LargeBuildButton active={buildMenuOpen} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "15px" }}>
+                <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
+                <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
                 <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
             </div>
         </div>
+    );
+}
+
+function VillagerButton({ active, onClick }: { active: boolean; onClick?: () => void }) {
+    const [hover, setHover] = useState(false);
+    const activeBorder = `1px solid ${THEME.accent}`;
+    const activeBg = "linear-gradient(135deg, rgba(245,165,36,0.12), rgba(245,165,36,0.06))";
+    const activeShadow = "0 6px 18px rgba(245,165,36,0.12)";
+    return (
+        <button
+            onClick={() => onClick?.()}
+            aria-label="Bewohner"
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            style={{
+                width: 68,
+                height: 68,
+                borderRadius: 16,
+                border: active ? activeBorder : `1px solid ${THEME.chipBorder}`,
+                background: active ? activeBg : GLASS_STRONG,
+                cursor: "pointer",
+                boxShadow: active ? activeShadow : THEME.panelShadow,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: hover ? "translateY(-4px) scale(1.03)" : "none",
+                transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
+            }}
+        >
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="3.2" />
+                <path d="M5 20c1-3 4-5 7-5s6 2 7 5" />
+            </svg>
+        </button>
     );
 }
 
@@ -1479,48 +1487,31 @@ function HammerButton({ active, onClick }: { active: boolean; onClick: () => voi
     );
 }
 
-function VillagerButton({ active, onClick }: { active: boolean; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            aria-label="Bewohner menu"
-            style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? ACCENT_BUTTON : GLASS_STRONG,
-                cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center"
-            }}
-        >
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="3.2" />
-                <path d="M5 20c1-3 4-5 7-5s6 2 7 5" />
-            </svg>
-        </button>
-    );
-}
 
 function InventoryButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    const [hover, setHover] = useState(false);
+    const activeBorder = `1px solid ${THEME.accent}`;
+    const activeBg = "linear-gradient(135deg, rgba(245,165,36,0.12), rgba(245,165,36,0.06))";
+    const activeShadow = "0 6px 18px rgba(245,165,36,0.18)";
     return (
         <button
             onClick={onClick}
             aria-label="Inventar"
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
             style={{
                 width: 68,
                 height: 68,
                 borderRadius: 16,
-                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? ACCENT_BUTTON : GLASS_STRONG,
+                border: active ? activeBorder : `1px solid ${THEME.chipBorder}`,
+                background: active ? activeBg : GLASS_STRONG,
                 cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                boxShadow: active ? activeShadow : THEME.panelShadow,
                 display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center"
+                justifyContent: "center",
+                transform: hover ? "translateY(-4px) scale(1.03)" : "none",
+                transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
             }}
         >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -1532,21 +1523,29 @@ function InventoryButton({ active, onClick }: { active: boolean; onClick: () => 
 }
 
 function LargeBuildButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    const [hover, setHover] = useState(false);
+    const activeBorder = `1px solid ${THEME.accent}`;
+    const activeBg = "linear-gradient(135deg, rgba(245,165,36,0.12), rgba(245,165,36,0.06))";
+    const activeShadow = "0 10px 30px rgba(245,165,36,0.18)";
     return (
         <button
             onClick={onClick}
             aria-label="Build menu"
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
             style={{
                 width: 104,
                 height: 104,
                 borderRadius: 20,
-                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? ACCENT_BUTTON : GLASS_STRONG,
+                border: active ? activeBorder : `1px solid ${THEME.chipBorder}`,
+                background: active ? activeBg : GLASS_STRONG,
                 cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                boxShadow: active ? activeShadow : THEME.panelShadow,
                 display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center"
+                justifyContent: "center",
+                transform: hover ? "translateY(-6px) scale(1.04)" : "none",
+                transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
             }}
         >
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -1558,473 +1557,9 @@ function LargeBuildButton({ active, onClick }: { active: boolean; onClick: () =>
     );
 }
 
-function BuildMenu({
-    open,
-    sections,
-    activeType,
-    unlocks,
-    quests,
-    tutorialLocks,
-    onSelect,
-    onClose
-}: {
-    open: boolean;
-    sections: BuildSection[];
-    activeType: BuildingTypeId | null;
-    unlocks: Record<string, boolean>;
-    quests?: GameState["quests"];
-    tutorialLocks: Partial<Record<BuildingTypeId, boolean>>;
-    onSelect: (type: BuildingTypeId) => void;
-    onClose: () => void;
-}) {
-    if (!open) return null;
+// Build menu removed
 
-    return (
-        <div
-            style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 24,
-                pointerEvents: "auto"
-            }}
-        >
-            <div
-                style={{
-                    position: "relative",
-                    maxHeight: "80vh",
-                    width: "min(1100px, 92vw)",
-                    overflow: "hidden",
-                    background: THEME.panelBg,
-                    borderRadius: 18,
-                    border: `1px solid ${THEME.panelBorder}`,
-                    boxShadow: "0 28px 60px rgba(0,0,0,0.25)",
-                    backdropFilter: "blur(8px)",
-                    pointerEvents: "auto",
-                    display: "flex",
-                    flexDirection: "column"
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${THEME.panelBorder}` }}>
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: 16 }}>Bauen</div>
-                        <div style={{ fontSize: 12, opacity: 0.75 }}>Kategorisiert nach Stufen, freischaltbar ueber Forschung</div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            border: `1px solid ${THEME.chipBorder}`,
-                            background: THEME.chipBg,
-                            borderRadius: 10,
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            fontWeight: 700
-                        }}
-                    >
-                        Schliessen
-                    </button>
-                </div>
-
-                <div style={{ padding: 16, overflowY: "auto", display: "grid", gap: 16 }}>
-                    {sections.map(section => {
-                        const unlocked = unlocks[section.id] ?? false;
-                        return (
-                            <div key={section.id} style={{ border: `1px solid ${section.accent}33`, borderRadius: 14, padding: 12, background: GLASS_BG, boxShadow: THEME.panelShadow }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                                    <div
-                                        style={{
-                                            width: 10,
-                                            height: 10,
-                                            borderRadius: 20,
-                                            background: section.accent,
-                                            boxShadow: `0 0 0 6px ${section.accent}18`
-                                        }}
-                                    />
-                                    <div style={{ fontWeight: 800 }}>{section.title}</div>
-                                    <div style={{ fontSize: 12, opacity: 0.7 }}>{section.focus}</div>
-                                    {!unlocked && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: section.accent }}>Gesperrt (Forschung)</span>}
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-                                    {section.items.map(item => {
-                                        const tutorialStep = item.type ? TUTORIAL_STEPS.find(step => step.target === item.type) : undefined;
-                                        const lockedByTutorial = item.type ? tutorialLocks[item.type] ?? false : false;
-                                        const selectable = unlocked && item.status === "available" && item.type && BUILDABLE_TYPE_SET.has(item.type) && !lockedByTutorial;
-                                        const locked =
-                                            !unlocked || item.status !== "available" || !item.type || !BUILDABLE_TYPE_SET.has(item.type) || lockedByTutorial;
-                                        const active = !!activeType && activeType === item.type;
-                                        const meta = item.type ? BUILD_META[item.type] : undefined;
-                                        const costText = meta?.cost ?? item.cost;
-                                        const lockLabel = lockedByTutorial && tutorialStep ? quests?.[tutorialStep.id]?.title ?? "Tutorial-Schritt" : null;
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                style={{
-                                                    border: `1px solid ${locked ? THEME.chipBorder : section.accent}55`,
-                                                    borderRadius: 12,
-                                                    padding: 12,
-                                                    background: locked ? MUTED_BG : GLASS_STRONG,
-                                                    opacity: locked ? 0.65 : 1,
-                                                    position: "relative",
-                                                    boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
-                                                    display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: 6,
-                                                    minHeight: CARD_MIN_HEIGHT
-                                                }}
-                                            >
-                                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                                    <div style={{ fontWeight: 800 }}>{item.title}</div>
-                                                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 8, border: `1px solid ${section.accent}55`, color: THEME.text }}>{item.size}</span>
-                                                </div>
-                                                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>{item.effect}</div>
-                                                <div style={{ fontSize: 11, opacity: 0.65 }}>Upgrade: {item.upgrade}</div>
-                                                {costText && <div style={{ fontSize: 11, opacity: 0.8 }}>Kosten: {costText}</div>}
-                                                {lockedByTutorial && (
-                                                    <div style={{ fontSize: 11, color: "#b91c1c" }}>
-                                                        Gesperrt bis Schritt erledigt: {lockLabel ?? tutorialStep?.description ?? "Tutorial"}
-                                                    </div>
-                                                )}
-                                                <button
-                                                    disabled={!selectable}
-                                                    onClick={() => item.type && onSelect(item.type)}
-                                                    style={{
-                                                        marginTop: "auto",
-                                                        width: "100%",
-                                                        height: 44,
-                                                        padding: "10px 12px",
-                                                        borderRadius: 10,
-                                                        border: selectable ? `1px solid ${section.accent}` : CHIP_BORDER,
-                                                        background: selectable ? ACCENT_BUTTON : SECONDARY_BUTTON,
-                                                        cursor: selectable ? "pointer" : "not-allowed",
-                                                        fontWeight: 700,
-                                                        color: THEME.text,
-                                                        boxShadow: selectable ? THEME.accentGlow : THEME.panelShadow
-                                                    }}
-                                                >
-                                                    {lockedByTutorial ? "Tutorial gesperrt" : locked ? "Gesperrt" : active ? "Aktiv" : "Bauen"}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function VillagerMenu({
-    open,
-    st,
-    onAssignHome,
-    onAssignWork,
-    onClose
-}: {
-    open: boolean;
-    st: GameState;
-    onAssignHome: (villagerId: string, buildingId: string | null) => void;
-    onAssignWork: (villagerId: string, buildingId: string | null) => void;
-    onClose: () => void;
-}) {
-    const [filter, setFilter] = useState<"all" | "homeless" | "jobless" | "hungry">("all");
-    const [sort, setSort] = useState<"hunger" | "name" | "job">("hunger");
-
-    const villagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
-    const buildings = useMemo(() => Object.values(st.buildings), [st.buildings]);
-
-    const homeCandidates = buildings.filter(b => b.type === "campfire" || b.type === "townhall" || b.type === "storage");
-    const workCandidates = buildings.filter(b => b.type !== "road" && b.type !== "rock" && b.type !== "tree" && b.type !== "berry_bush" && b.type !== "mushroom");
-    const labelFor = (b: typeof buildings[number]) => BUILD_META[b.type]?.title ?? b.type;
-
-    const stats = useMemo(() => {
-        const hungry = villagers.filter(v => v.needs.hunger >= 0.55).length;
-        const homeless = villagers.filter(v => !v.homeBuildingId).length;
-        const jobless = villagers.filter(v => v.job === "idle").length;
-        return { total: villagers.length, hungry, homeless, jobless };
-    }, [villagers]);
-
-    const filteredVillagers = useMemo(() => {
-        switch (filter) {
-            case "hungry":
-                return villagers.filter(v => v.needs.hunger >= 0.55);
-            case "homeless":
-                return villagers.filter(v => !v.homeBuildingId);
-            case "jobless":
-                return villagers.filter(v => v.job === "idle");
-            default:
-                return villagers;
-        }
-    }, [villagers, filter]);
-
-    const sortedVillagers = useMemo(() => {
-        const copy = [...filteredVillagers];
-        const byHunger = (a: typeof copy[number], b: typeof copy[number]) => b.needs.hunger - a.needs.hunger;
-        const byName = (a: typeof copy[number], b: typeof copy[number]) => a.name.localeCompare(b.name);
-        const byJob = (a: typeof copy[number], b: typeof copy[number]) => a.job.localeCompare(b.job) || a.name.localeCompare(b.name);
-        if (sort === "name") return copy.sort(byName);
-        if (sort === "job") return copy.sort(byJob);
-        return copy.sort(byHunger);
-    }, [filteredVillagers, sort]);
-
-    const JOB_LABEL: Record<string, string> = {
-        idle: "Ohne Job",
-        gatherer: "Sammler",
-        woodcutter: "Holzfaeller",
-        builder: "Bauer",
-        researcher: "Forscher",
-        fisher: "Fischer",
-        guard: "Wache"
-    };
-
-    const JOB_COLOR: Record<string, string> = {
-        idle: "#9ca3af",
-        gatherer: "#22c55e",
-        woodcutter: "#c26d34",
-        builder: "#f97316",
-        researcher: "#6366f1",
-        fisher: "#0ea5e9",
-        guard: "#ef4444"
-    };
-
-    if (!open) return null;
-
-    return (
-        <div
-            style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 24,
-                pointerEvents: "auto"
-            }}
-        >
-            <div
-                style={{
-                    position: "relative",
-                    maxHeight: "82vh",
-                    width: "min(1080px, 94vw)",
-                    overflow: "hidden",
-                    background: THEME.panelBg,
-                    borderRadius: 18,
-                    border: `1px solid ${THEME.panelBorder}`,
-                    boxShadow: "0 28px 60px rgba(0,0,0,0.25)",
-                    backdropFilter: "blur(8px)",
-                    pointerEvents: "auto",
-                    display: "flex",
-                    flexDirection: "column"
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: `1px solid ${THEME.panelBorder}` }}>
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: 16 }}>Bewohner</div>
-                        <div style={{ fontSize: 12, opacity: 0.75 }}>Uebersicht, Zuhause und Jobs</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <select
-                            aria-label="Sortierung"
-                            value={sort}
-                            onChange={e => setSort(e.target.value as typeof sort)}
-                            style={{ padding: "8px 10px", borderRadius: 10, border: `1px solid ${THEME.panelBorder}`, background: "#fff", fontWeight: 700, fontSize: 12 }}
-                        >
-                            <option value="hunger">Sortiere nach Hunger</option>
-                            <option value="name">Sortiere nach Name</option>
-                            <option value="job">Sortiere nach Job</option>
-                        </select>
-                        <button
-                            onClick={onClose}
-                            style={{
-                                border: `1px solid ${THEME.chipBorder}`,
-                                background: THEME.chipBg,
-                                borderRadius: 10,
-                                padding: "8px 12px",
-                                cursor: "pointer",
-                                fontWeight: 700
-                            }}
-                        >
-                            Schliessen
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ padding: 16, display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, minHeight: 0, flex: 1 }}>
-                    <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
-                        <div
-                            style={{
-                                padding: 16,
-                                borderRadius: 16,
-                                border: PANEL_BORDER,
-                                background: `${CARD_BG}, ${GRADIENT_EDGE}`,
-                                boxShadow: THEME.panelShadow,
-                                display: "grid",
-                                gap: 10,
-                                position: "relative"
-                            }}
-                        >
-                            <div style={{ position: "absolute", left: 10, top: 10, bottom: 10, width: 4, borderRadius: 8, background: THEME.accent, opacity: 0.25 }} />
-                            <div style={{ fontWeight: 800, fontSize: 14, paddingLeft: 12 }}>Dorfstatus</div>
-                            <div style={{ display: "grid", gap: 8, paddingLeft: 12 }}>
-                                <StatusChip label="Bewohner" value={String(stats.total)} />
-                                <StatusChip label="Obdachlos" value={String(stats.homeless)} tone={stats.homeless ? "warn" : "muted"} />
-                                <StatusChip label="Ohne Job" value={String(stats.jobless)} tone={stats.jobless ? "warn" : "muted"} />
-                                <StatusChip label="Hungrig" value={String(stats.hungry)} tone={stats.hungry ? "warn" : "muted"} />
-                            </div>
-                        </div>
-
-                        <div
-                            style={{
-                                padding: 14,
-                                borderRadius: 14,
-                                border: PANEL_BORDER,
-                                background: GLASS_BG,
-                                display: "grid",
-                                gap: 10,
-                                boxShadow: THEME.panelShadow
-                            }}
-                        >
-                            <div style={{ fontWeight: 800, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: 20, background: THEME.accent }} />
-                                Filter & Fokus
-                            </div>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                <PillButton label="Alle" active={filter === "all"} onClick={() => setFilter("all")} />
-                                <PillButton label="Hungrig" active={filter === "hungry"} onClick={() => setFilter("hungry")} />
-                                <PillButton label="Obdachlos" active={filter === "homeless"} onClick={() => setFilter("homeless")} />
-                                <PillButton label="Ohne Job" active={filter === "jobless"} onClick={() => setFilter("jobless")} />
-                            </div>
-                            <div style={{ fontSize: 11, opacity: 0.7 }}>Wähle einen Fokus, um nur relevante Bewohner zu sehen.</div>
-                        </div>
-
-                        <div
-                            style={{
-                                padding: 12,
-                                borderRadius: 12,
-                                border: PANEL_BORDER,
-                                background: GLASS_STRONG,
-                                display: "grid",
-                                gap: 6,
-                                boxShadow: THEME.panelShadow
-                            }}
-                        >
-                            <div style={{ fontWeight: 800, fontSize: 12 }}>Legende</div>
-                            <div style={{ fontSize: 11, display: "grid", gap: 4 }}>
-                                <span>Hunger Warnung ab 55%</span>
-                                <span>Krank Warnung ab 30%</span>
-                                <span>Energie zeigt verbleibende Kraft (grün ist besser)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 10, overflowY: "auto", paddingRight: 4 }}>
-                        {sortedVillagers.map(v => {
-                            const home = v.homeBuildingId ? st.buildings[v.homeBuildingId] : null;
-                            const work = v.assignedBuildingId ? st.buildings[v.assignedBuildingId] : null;
-                            const hungerPct = Math.round(v.needs.hunger * 100);
-                            const energyPct = Math.round(v.needs.energy * 100);
-                            const illnessPct = Math.round(v.needs.illness * 100);
-                            return (
-                                <div
-                                    key={v.id}
-                                    style={{
-                                        border: PANEL_BORDER,
-                                        borderRadius: 12,
-                                        padding: 12,
-                                        background: GLASS_BG,
-                                        boxShadow: THEME.panelShadow,
-                                        display: "grid",
-                                        gap: 10
-                                    }}
-                                >
-                                    <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <div
-                                                style={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    borderRadius: 12,
-                                                    background: "linear-gradient(145deg, #ffe3c5, #ffd1b3)",
-                                                    border: `1px solid ${THEME.chipBorder}`,
-                                                    display: "grid",
-                                                    placeItems: "center",
-                                                    fontWeight: 800,
-                                                    color: THEME.text
-                                                }}
-                                            >
-                                                {v.name.slice(0, 1)}
-                                            </div>
-                                            <div style={{ display: "grid", gap: 2 }}>
-                                                <div style={{ fontWeight: 800 }}>{v.name}</div>
-                                                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                                                    <span style={{ fontSize: 12, opacity: 0.7 }}>#{v.id}</span>
-                                                    <span
-                                                        style={{
-                                                            fontSize: 11,
-                                                            padding: "2px 6px",
-                                                            borderRadius: 8,
-                                                            border: `1px solid ${JOB_COLOR[v.job] ?? THEME.chipBorder}`,
-                                                            background: `${JOB_COLOR[v.job] ?? THEME.chipBorder}15`,
-                                                            color: THEME.text,
-                                                            fontWeight: 700
-                                                        }}
-                                                    >
-                                                        {JOB_LABEL[v.job] ?? v.job}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <NeedMeter label="Hunger" value={hungerPct} tone={hungerPct >= 55 ? "warn" : "ok"} />
-                                            <NeedMeter label="Energie" value={energyPct} tone="ok" inverted />
-                                            <NeedMeter label="Krank" value={illnessPct} tone={illnessPct >= 30 ? "warn" : "ok"} />
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-                                        <label style={{ display: "grid", gap: 6, fontSize: 12, background: "rgba(0,0,0,0.02)", borderRadius: 10, padding: 10, border: `1px solid ${THEME.panelBorder}` }}>
-                                            <span style={{ opacity: 0.7 }}>Zuhause</span>
-                                            <StyledSelect value={v.homeBuildingId ?? ""} onChange={value => onAssignHome(v.id, value || null)}>
-                                                <option value="">Keins</option>
-                                                {homeCandidates.map(b => (
-                                                    <option key={b.id} value={b.id}>
-                                                        {labelFor(b)} (#{b.id}) {b.residentIds?.length ? `- ${b.residentIds.length} drin` : ""}
-                                                    </option>
-                                                ))}
-                                            </StyledSelect>
-                                            <span style={{ fontSize: 11, opacity: 0.65 }}>Aktuell: {home ? labelFor(home) : "-"}</span>
-                                        </label>
-
-                                        <label style={{ display: "grid", gap: 6, fontSize: 12, background: "rgba(0,0,0,0.02)", borderRadius: 10, padding: 10, border: `1px solid ${THEME.panelBorder}` }}>
-                                            <span style={{ opacity: 0.7 }}>Arbeitsstaette</span>
-                                            <div style={{
-                                                borderRadius: 10,
-                                                border: `1px dashed ${THEME.panelBorder}`,
-                                                padding: "10px 12px",
-                                                background: "rgba(0,0,0,0.03)",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                gap: 8
-                                            }}>
-                                                <span style={{ fontWeight: 700 }}>{work ? labelFor(work) : "Keine"}</span>
-                                                <span style={{ fontSize: 11, opacity: 0.65 }}>Zuordnung am Gebaeude</span>
-                                            </div>
-                                        </label>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
+// VillagerMenu removed
 
 function PillButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
     return (

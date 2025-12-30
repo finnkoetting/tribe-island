@@ -25,7 +25,7 @@ const shuffle = <T,>(arr: T[], rng: () => number): T[] => {
     return copy;
 };
 
-const makeMushroom = (id: string, pos: Vec2): Building => ({
+const makeMushroom = (id: string, pos: Vec2, variant: number, amount: number): Building => ({
     id,
     type: "mushroom",
     pos,
@@ -37,9 +37,13 @@ const makeMushroom = (id: string, pos: Vec2): Building => ({
         progress: 0,
         duration: 0,
         blocked: false,
-        collectable: false
+        collectable: true
     },
-    output: null
+    variant,
+    output: {
+        resource: "mushrooms",
+        amount
+    }
 });
 
 const ALLOWED_TILES = new Set<WorldTileId>(["forest", "meadow"]);
@@ -65,7 +69,9 @@ export function spawnMushrooms(st: GameState, count: number, rng: () => number):
         if (isOccupied(pos, next)) continue;
         if (!canPlaceAt(next, pos, "mushroom")) continue;
 
-        const mush = makeMushroom(mushroomId(rng), pos);
+        const variant = 1 + Math.floor(rng() * 3);
+        const amount = variant; // mapping: variant 1 -> 1, 2 -> 2, 3 -> 3 mushrooms
+        const mush = makeMushroom(mushroomId(rng), pos, variant, amount);
         next = placeAt(next, mush);
         spawned += 1;
     }

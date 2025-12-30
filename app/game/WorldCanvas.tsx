@@ -9,6 +9,7 @@ import type { BuildingTypeId, GameState, Vec2, WorldTileId } from "../../src/gam
 import desertTile1 from "../../src/ui/game/textures/terrain/desert/1.png";
 import desertTile2 from "../../src/ui/game/textures/terrain/desert/2.png";
 import desertTile3 from "../../src/ui/game/textures/terrain/desert/3.png";
+import desertTile4 from "../../src/ui/game/textures/terrain/desert/4.png";
 import forestTile1 from "../../src/ui/game/textures/terrain/forest/1.png";
 import forestTile2 from "../../src/ui/game/textures/terrain/forest/2.png";
 import forestTile3 from "../../src/ui/game/textures/terrain/forest/3.png";
@@ -17,6 +18,9 @@ import meadowTile2 from "../../src/ui/game/textures/terrain/meadow/2.png";
 import meadowTile3 from "../../src/ui/game/textures/terrain/meadow/3.png";
 import mountainTile1 from "../../src/ui/game/textures/terrain/mountain/1.png";
 import mountainTile2 from "../../src/ui/game/textures/terrain/mountain/2.png";
+import mountainTile3 from "../../src/ui/game/textures/terrain/mountain/3.png";
+import waterTile2 from "../../src/ui/game/textures/terrain/water/2.png";
+import waterTile3 from "../../src/ui/game/textures/terrain/water/3.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
 import { getTextureBitmap, preloadTextures } from "../../src/ui/game/textures/loader";
 
@@ -42,15 +46,15 @@ const TILE_COLORS: Record<WorldTileId, string> = {
 };
 
 const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
-    water: [waterTile1],
-    sand: [desertTile1, desertTile2, desertTile3],
-    rock: [mountainTile1, mountainTile2],
-    mountain: [mountainTile1, mountainTile2],
+    water: [waterTile1, waterTile2, waterTile3],
+    sand: [desertTile1, desertTile2, desertTile3, desertTile4],
+    rock: [mountainTile1, mountainTile2, mountainTile3],
+    mountain: [mountainTile1, mountainTile2, mountainTile3],
     dirt: [meadowTile1, meadowTile2, meadowTile3],
     grass: [meadowTile1, meadowTile2, meadowTile3],
     forest: [forestTile1, forestTile2, forestTile3],
     meadow: [meadowTile1, meadowTile2, meadowTile3],
-    desert: [desertTile1, desertTile2, desertTile3]
+    desert: [desertTile1, desertTile2, desertTile3, desertTile4]
 };
 
 import { BUILDING_COLORS, UI_THEME as THEME } from "../../src/ui/theme";
@@ -99,7 +103,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTextures, setTreeTextures] = useState<ImageBitmap[] | null>(null);
-    const [rockTexture, setRockTexture] = useState<ImageBitmap | null>(null);
+    const [rockTextures, setRockTextures] = useState<ImageBitmap[] | null>(null);
     const [villagerTextures, setVillagerTextures] = useState<{
         male?: ImageBitmap | null;
         female?: ImageBitmap | null;
@@ -109,7 +113,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [sheepTexture, setSheepTexture] = useState<ImageBitmap | null>(null);
     const [dogTexture, setDogTexture] = useState<ImageBitmap | null>(null);
     const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
-    const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
+    const [mushroomTextures, setMushroomTextures] = useState<ImageBitmap[] | null>(null);
     const [campfireTexture, setCampfireTexture] = useState<ImageBitmap | null>(null);
     const [campfireLvl2Texture, setCampfireLvl2Texture] = useState<ImageBitmap | null>(null);
     const [campfireLvl3Texture, setCampfireLvl3Texture] = useState<ImageBitmap | null>(null);
@@ -180,11 +184,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        getTextureBitmap("objects/stone")
-            .then((bmp) => {
-                if (!cancelled && bmp) setRockTexture(bmp);
+        Promise.all([getTextureBitmap("objects/stone/1"), getTextureBitmap("objects/stone/2"), getTextureBitmap("objects/stone/3")])
+            .then((bmps) => {
+                if (cancelled) return;
+                const valid = bmps.filter((b): b is ImageBitmap => Boolean(b));
+                if (valid.length) setRockTextures(valid);
             })
-            .catch((err) => console.warn("Failed to load rock texture", err));
+            .catch((err) => console.warn("Failed to load rock textures", err));
         return () => {
             cancelled = true;
         };
@@ -261,11 +267,13 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        getTextureBitmap("objects/mushroom")
-            .then((bmp) => {
-                if (!cancelled && bmp) setMushroomTexture(bmp);
+        Promise.all([getTextureBitmap("objects/mushroom/1"), getTextureBitmap("objects/mushroom/2"), getTextureBitmap("objects/mushroom/3")])
+            .then((bmps) => {
+                if (cancelled) return;
+                const valid = bmps.filter((b): b is ImageBitmap => Boolean(b));
+                if (valid.length) setMushroomTextures(valid);
             })
-            .catch((err) => console.warn("Failed to load mushroom texture", err));
+            .catch((err) => console.warn("Failed to load mushroom textures", err));
         return () => {
             cancelled = true;
         };
@@ -464,9 +472,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             worldPx.cosA,
             worldPx.sinA,
             treeTextures,
-            rockTexture,
+            rockTextures,
             berryBushTexture,
-            mushroomTexture,
+            mushroomTextures,
             campfireTexture,
             collectorTexture
         );
@@ -500,10 +508,10 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         meadowAnimals,
         tileTextures,
         treeTextures,
-        rockTexture,
+        rockTextures,
         villagerTextures,
         berryBushTexture,
-        mushroomTexture,
+        mushroomTextures,
         campfireTexture,
         collectorTexture,
         cowTexture,
@@ -941,17 +949,17 @@ function drawAnimals(
         const cy = sy + HALF_H * 0.6;
 
         if (animal.kind === "cow" && cowTexture) {
-            drawIsoSprite(ctx, cowTexture, sx, sy, { heightScale: 1.1, widthScale: 0.9, offsetY: -2 });
+            drawIsoSprite(ctx, cowTexture, sx, sy, { heightScale: 0.85, widthScale: 0.8, offsetY: -1 });
             continue;
         }
 
         if (animal.kind === "sheep" && sheepTexture) {
-            drawIsoSprite(ctx, sheepTexture, sx, sy, { heightScale: 1.0, widthScale: 0.9, offsetY: -1 });
+            drawIsoSprite(ctx, sheepTexture, sx, sy, { heightScale: 0.75, widthScale: 0.8, offsetY: -1 });
             continue;
         }
 
         const style = ANIMAL_STYLES[animal.kind];
-        const bodyR = animal.kind === "cow" ? 5 : 4;
+        const bodyR = animal.kind === "cow" ? 3.5 : 3;
         const bodySquish = animal.kind === "cow" ? 0.76 : 0.7;
 
         ctx.fillStyle = style.body;
@@ -1119,9 +1127,9 @@ function drawBuildings(
     cosA: number,
     sinA: number,
     treeTextures: ImageBitmap[] | null,
-    rockTexture: ImageBitmap | null,
+    rockTextures: ImageBitmap[] | null,
     berryBushTexture: ImageBitmap | null,
-    mushroomTexture: ImageBitmap | null,
+    mushroomTextures: ImageBitmap[] | null,
     campfireTexture: ImageBitmap | null,
     collectorTexture: ImageBitmap | null
 ) {
@@ -1137,12 +1145,14 @@ function drawBuildings(
         }
 
         if (b.type === "rock") {
-            drawRockTile(ctx, b.pos, originX, originY, cosA, sinA, rockTexture);
+            const idx = b.variant && rockTextures ? Math.max(0, Math.min(rockTextures.length - 1, b.variant - 1)) : 0;
+            const tex = rockTextures && rockTextures.length ? rockTextures[idx] : null;
+            drawRockTile(ctx, b.pos, originX, originY, cosA, sinA, tex);
             continue;
         }
 
-        if (b.type === "tree") {
-            drawTreeTile(ctx, b.pos, originX, originY - 12.5, cosA, sinA, treeTextures, b.id);
+            if (b.type === "tree") {
+                drawTreeTile(ctx, b.pos, originX, originY - 12.5, cosA, sinA, treeTextures, b.id);
             continue;
         }
 
@@ -1152,7 +1162,9 @@ function drawBuildings(
         }
 
         if (b.type === "mushroom") {
-            drawMushroomTile(ctx, b.pos, originX, originY, cosA, sinA, mushroomTexture);
+            const idx = b.variant && mushroomTextures ? Math.max(0, Math.min(mushroomTextures.length - 1, b.variant - 1)) : 0;
+            const tex = mushroomTextures && mushroomTextures.length ? mushroomTextures[idx] : null;
+            drawMushroomTile(ctx, b.pos, originX, originY, cosA, sinA, tex);
             continue;
         }
 
@@ -1479,11 +1491,11 @@ function drawBushTile(
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
     if (bushTexture) {
-        drawIsoSprite(ctx, bushTexture, sx, sy, { heightScale: 1.4, widthScale: 0.9 });
+        drawIsoSprite(ctx, bushTexture, sx, sy, { heightScale: .9, widthScale: 0.9 });
         return;
     }
 
-    const r = 0.28;
+    const r = 0.18;
     const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
     const pN = project(0, -r * 1.1);
     const pE = project(r * 0.9, 0);
@@ -1515,11 +1527,11 @@ function drawMushroomTile(
 ) {
     const { sx, sy } = tileToScreen(pos.x, pos.y, originX, originY, cosA, sinA);
     if (mushroomTexture) {
-        drawIsoSprite(ctx, mushroomTexture, sx, sy, { heightScale: 1.05, widthScale: 0.92 });
+        drawIsoSprite(ctx, mushroomTexture, sx, sy, { heightScale: 0.55, widthScale: 0.92 });
         return;
     }
 
-    const r = 0.22;
+    const r = 0.12;
     const project = (lx: number, ly: number) => tileToScreen(pos.x + lx + 1, pos.y + ly, originX, originY, cosA, sinA);
     const pN = project(0, -r);
     const pE = project(r, 0);
@@ -1655,15 +1667,15 @@ function drawVillagers(
 
             if (tex) {
                 drawIsoSprite(ctx, tex, sx, sy, {
-                    heightScale: 0.9,
-                    widthScale: 0.85,
+                    heightScale: 0.6,
+                    widthScale: 0.6,
                     offsetY: -1,
                     flipX: v.facing === "left"
                 });
             } else {
                 ctx.fillStyle = VILLAGER_COLOR;
                 ctx.beginPath();
-                ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 3, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.strokeStyle = "rgba(255,255,255,0.7)";
@@ -1709,11 +1721,11 @@ function drawGameAnimals(
 
         if (a.type === "dog") {
             if (dogTexture) {
-                drawIsoSprite(ctx, dogTexture, sx, sy, { heightScale: 0.9, widthScale: 0.9, offsetY: -1 });
+                drawIsoSprite(ctx, dogTexture, sx, sy, { heightScale: 0.6, widthScale: 0.6, offsetY: -1 });
             } else {
                 ctx.fillStyle = "#8B5E3C";
                 ctx.beginPath();
-                ctx.ellipse(cx, cy, 4.5, 3.5, 0, 0, Math.PI * 2);
+                ctx.ellipse(cx, cy, 3, 2.5, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.strokeStyle = "rgba(0,0,0,0.35)";
                 ctx.lineWidth = 1;

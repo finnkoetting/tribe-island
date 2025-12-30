@@ -25,7 +25,7 @@ const shuffle = <T,>(arr: T[], rng: () => number): T[] => {
     return copy;
 };
 
-const makeRock = (id: string, pos: Vec2): Building => ({
+const makeRock = (id: string, pos: Vec2, variant: number, amount: number): Building => ({
     id,
     type: "rock",
     pos,
@@ -37,10 +37,14 @@ const makeRock = (id: string, pos: Vec2): Building => ({
         progress: 0,
         duration: 0,
         blocked: false,
-        collectable: false,
+        collectable: true,
         started: false
     },
-    output: null
+    variant,
+    output: {
+        resource: "stone",
+        amount
+    }
 });
 
 /**
@@ -67,7 +71,9 @@ export function spawnDesertRocks(st: GameState, count: number, rng: () => number
         if (isOccupied(pos, next)) continue;
         if (!canPlaceAt(next, pos, "rock")) continue;
 
-        const rock = makeRock(rockId(rng), pos);
+        const variant = 1 + Math.floor(rng() * 3);
+        const amount = variant; // variant 1->1, 2->2, 3->3 stones
+        const rock = makeRock(rockId(rng), pos, variant, amount);
         next = placeAt(next, rock);
         spawned += 1;
     }
