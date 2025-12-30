@@ -1,36 +1,36 @@
-// Style Guide für Modals im Tribez-Look
-// Farben, Ecken, Schatten, Typografie, Buttons
+import { THEME } from "../theme";
 
+// Modal style that uses centralized THEME tokens for consistency.
 export const MODAL_STYLE = {
-  background: 'linear-gradient(135deg, #2e2a1c 0%, #4b4327 100%)', // warmes, leicht goldenes Braun
-  borderRadius: 22,
-  border: '3px solid #e2c17c', // goldener Rahmen
-  boxShadow: '0 8px 32px rgba(60,40,10,0.25)',
-  padding: 24,
-  color: '#fffbe6',
-  fontFamily: 'Quicksand, Nunito, Arial, sans-serif',
-  headerFontWeight: 900,
-  headerFontSize: 22,
-  subHeaderFontSize: 15,
+  background: THEME.modal.background,
+  borderRadius: THEME.modal.borderRadius,
+  border: THEME.modal.border,
+  boxShadow: THEME.modal.boxShadow,
+  padding: THEME.modal.padding,
+  color: THEME.modal.color,
+  fontFamily: THEME.fonts.base,
+  headerFontWeight: THEME.modal.headerFontWeight,
+  headerFontSize: THEME.modal.headerFontSize,
+  subHeaderFontSize: THEME.modal.subHeaderFontSize,
   button: {
-    background: 'linear-gradient(90deg, #ffe082 0%, #ffd54f 100%)',
-    color: '#4b4327',
-    border: '2px solid #e2c17c',
-    borderRadius: 14,
-    fontWeight: 900,
-    fontSize: 16,
-    boxShadow: '0 2px 8px rgba(60,40,10,0.10)',
-    padding: '12px 28px',
+    background: THEME.button.background,
+    color: THEME.button.color,
+    border: THEME.button.border,
+    borderRadius: THEME.button.borderRadius,
+    fontWeight: THEME.button.fontWeight,
+    fontSize: THEME.button.fontSize,
+    boxShadow: THEME.button.boxShadow,
+    padding: THEME.button.padding,
     hover: {
-      background: 'linear-gradient(90deg, #fffde7 0%, #ffe082 100%)',
-      color: '#3e3520',
+      background: THEME.button.hoverBackground,
+      color: "#3e3520",
     }
   },
   card: {
-    background: 'rgba(255, 245, 200, 0.08)',
-    border: '2px solid #e2c17c',
-    borderRadius: 16,
-    boxShadow: '0 2px 8px rgba(60,40,10,0.10)',
+    background: THEME.modal.cardBg,
+    border: THEME.modal.cardBorder,
+    borderRadius: THEME.modal.cardRadius,
+    boxShadow: THEME.shadows.button,
     padding: 16,
   }
 };

@@ -17,13 +17,13 @@ import { ModalContainer } from "../../src/ui/components/ModalContainer";
 import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal";
 import { MODAL_STYLE } from "../../src/ui/theme/modalStyleGuide";
 
-const GLASS_BG = "rgba(12, 16, 26, 0.78)";
-const GLASS_STRONG = "rgba(8, 12, 20, 0.9)";
-const CARD_BG = "linear-gradient(145deg, rgba(22, 32, 52, 0.96), rgba(12, 18, 32, 0.94))";
-const MUTED_BG = "rgba(255, 255, 255, 0.03)";
-const GRADIENT_EDGE = "linear-gradient(135deg, rgba(124,243,255,0.12), rgba(86,122,255,0.18))";
-const ACCENT_BUTTON = "linear-gradient(135deg, #7cf3ff, #4de0e6)";
-const SECONDARY_BUTTON = "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))";
+const GLASS_BG = THEME.glassBg;
+const GLASS_STRONG = THEME.glassStrong;
+const CARD_BG = THEME.cardBg;
+const MUTED_BG = THEME.mutedBg;
+const GRADIENT_EDGE = THEME.gradientEdge;
+const ACCENT_BUTTON = THEME.accentButton;
+const SECONDARY_BUTTON = THEME.secondaryButton;
 const PANEL_BORDER = `1px solid ${THEME.panelBorder}`;
 const CHIP_BORDER = `1px solid ${THEME.chipBorder}`;
 const CARD_MIN_HEIGHT = 210;
@@ -263,7 +263,8 @@ const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: 
     { id: "fibers", label: "Fasern", Icon: FibersIcon, color: "#6ee7b7" },
     { id: "medicine", label: "Medizin", Icon: MedicineIcon, color: "#f472b6" },
     { id: "knowledge", label: "Wissen", Icon: KnowledgeIcon, color: "#fbbf24" },
-    { id: "gold", label: "Gold", Icon: GoldIcon, color: "#f59e0b" }
+    { id: "gold", label: "Gold", Icon: GoldIcon, color: "#f59e0b" },
+    { id: "emerald", label: "Smaragde", Icon: EmeraldIcon, color: "#10b981" }
 ];
 
 // Helper: prettify resource id fallback
@@ -562,7 +563,6 @@ export default function GameClient() {
             </div>
 
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                <TopLeftHud st={st} />
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
                 <BuildMenu
@@ -913,13 +913,13 @@ function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"];
         <div
             style={{
                 position: "absolute",
-                top: 110,
+                top: 16,
                 left: 18,
-                padding: "12px 14px",
-                maxWidth: "320px",
+                padding: "10px 14px",
+                width: "min(360px, 92vw)",
                 background: `${GLASS_BG}, ${GRADIENT_EDGE}`,
                 border: PANEL_BORDER,
-                borderRadius: 14,
+                borderRadius: 12,
                 boxShadow: THEME.panelShadow,
                 backdropFilter: "blur(12px)",
                 pointerEvents: "auto",
@@ -989,17 +989,16 @@ function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"];
 }
 
 function TopRightResources({ st }: { st: GameState }) {
+    const ids = ["gold", "emerald"];
+    const items = ids.map(id => RES_ORDER.find(r => r.id === id)).filter(Boolean) as typeof RES_ORDER;
+    if (!items.length) return null;
+
     return (
         <div
             style={{
                 position: "absolute",
                 top: 16,
                 right: 16,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
-                maxWidth: "min(70vw, 640px)",
                 pointerEvents: "auto",
                 padding: "6px 8px",
                 background: GLASS_BG,
@@ -1009,43 +1008,44 @@ function TopRightResources({ st }: { st: GameState }) {
                 backdropFilter: "blur(12px)"
             }}
         >
-            {RES_ORDER.map(res => (
-                <div
-                    key={res.id}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        minWidth: 110,
-                        padding: "6px 10px",
-                        background: "linear-gradient(135deg, rgba(124,243,255,0.08), rgba(86,122,255,0.08))",
-                        borderRadius: 10,
-                        border: PANEL_BORDER,
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px rgba(0,0,0,0.28)",
-                        backdropFilter: "blur(6px)"
-                    }}
-                >
-                    <span
+            <div style={{ display: "flex", gap: 8 }}>
+                {items.map(item => (
+                    <div
+                        key={item.id}
                         style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            display: "inline-flex",
+                            display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06) 0%, ${res.color}33 70%, transparent 100%)`,
+                            gap: 8,
+                            minWidth: 110,
+                            padding: "6px 10px",
+                            borderRadius: 10,
                             border: PANEL_BORDER,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.16)",
-                            fontSize: 15
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px rgba(0,0,0,0.28)",
+                            backdropFilter: "blur(6px)",
+                            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.04) 0%, ${item.color}22 70%, transparent 100%)`
                         }}
                     >
-                        <res.Icon />
-                    </span>
-                    <span style={{ flex: 1, opacity: 0.85 }}>{res.label}</span>
-                    <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", color: THEME.text }}>{st.inventory[res.id] ?? 0}</span>
-                </div>
-            ))}
+                        <span
+                            style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 8,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06) 0%, ${item.color}33 70%, transparent 100%)`,
+                                border: PANEL_BORDER,
+                                boxShadow: "inset 0 1px 2px rgba(255,255,255,0.16)",
+                                fontSize: 15
+                            }}
+                        >
+                            <item.Icon />
+                        </span>
+                        <span style={{ flex: 1, opacity: 0.85 }}>{item.label}</span>
+                        <span style={{ fontWeight: 800, fontVariantNumeric: "tabular-nums", color: THEME.text }}>{st.inventory[item.id as keyof GameState["inventory"]] ?? 0}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -1397,7 +1397,6 @@ function BottomHud({
     onCloseBuildingModal: () => void;
     fps: number;
 }) {
-    const hunger = st.alerts?.hunger?.severity ?? 0;
     return (
         <div
             style={{
@@ -1408,93 +1407,22 @@ function BottomHud({
                 padding: "10px 14px",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                justifyContent: "center",
                 pointerEvents: "none",
                 gap: 12,
-                background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(30,15,0,0.28) 45%, rgba(30,15,0,0.42) 100%)",
-                backdropFilter: "blur(10px)"
+                background: THEME.overlayGradient
             }}
         >
-            <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
-                <SpeedButton label="||" active={st.speed === 0} onClick={() => setSt(s => ({ ...s, speed: 0 }))} />
-                <SpeedButton label=">" active={st.speed === 1} onClick={() => setSt(s => ({ ...s, speed: 1 }))} />
-                <SpeedButton label=">>" active={st.speed === 2} onClick={() => setSt(s => ({ ...s, speed: 2 }))} />
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, pointerEvents: "auto" }}>
-                <HammerButton active={buildMenuOpen} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+            <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "35px" }}>
                 <VillagerButton active={villagerMenuOpen} onClick={onToggleVillagerMenu} />
-                <div
-                    style={{
-                        minWidth: 180,
-                        textAlign: "center",
-                        fontSize: 12,
-                        opacity: 0.9,
-                        padding: "10px 14px",
-                        borderRadius: 14,
-                        border: PANEL_BORDER,
-                        background: GLASS_BG,
-                        boxShadow: THEME.panelShadow
-                    }}
-                >
-                    {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode}` : "Kein Bau aktiv"}
-                </div>
-                {buildMode && (
-                    <button
-                        onClick={onCancelBuild}
-                        style={{
-                            padding: "10px 14px",
-                            borderRadius: 12,
-                            border: PANEL_BORDER,
-                            background: ACCENT_BUTTON,
-                            cursor: "pointer",
-                            fontWeight: 700,
-                            color: THEME.text,
-                            boxShadow: THEME.accentGlow,
-                            height: 44,
-                            minWidth: 120
-                        }}
-                    >
-                        Abbrechen
-                    </button>
-                )}
-            </div>
-
-            <div style={{ display: "grid", gap: 6, pointerEvents: "auto", justifyItems: "end" }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Tag label="Bewohner" value={String(villagerCount)} />
-                    <Tag label="Hunger" value={String(hunger)} tone={hunger > 0 ? "warn" : "muted"} />
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Tag label="FPS" value={Math.round(fps).toString()} />
-                    <Tag label="Tag" value={String(st.time.day)} />
-                </div>
+                <LargeBuildButton active={buildMenuOpen} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
             </div>
         </div>
     );
 }
 
-function SpeedButton({ label, active, onClick }: { label: string; active?: boolean; onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                border: active ? PANEL_BORDER : CHIP_BORDER,
-                background: active ? ACCENT_BUTTON : GLASS_BG,
-                color: THEME.text,
-                fontWeight: 800,
-                cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
-                backdropFilter: "blur(6px)"
-            }}
-        >
-            {label}
-        </button>
-    );
-}
+// Speed control UI removed; time/speed is controlled by game systems only
 
 function Tag({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "warn" }) {
     const palette =
@@ -1530,9 +1458,9 @@ function HammerButton({ active, onClick }: { active: boolean; onClick: () => voi
             onClick={onClick}
             aria-label="Build menu"
             style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
+                width: 68,
+                height: 68,
+                borderRadius: 16,
                 border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
                 background: active ? ACCENT_BUTTON : GLASS_STRONG,
                 cursor: "pointer",
@@ -1569,9 +1497,62 @@ function VillagerButton({ active, onClick }: { active: boolean; onClick: () => v
                 justifyContent: "center"
             }}
         >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="8" r="3.2" />
                 <path d="M5 20c1-3 4-5 7-5s6 2 7 5" />
+            </svg>
+        </button>
+    );
+}
+
+function InventoryButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            aria-label="Inventar"
+            style={{
+                width: 68,
+                height: 68,
+                borderRadius: 16,
+                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? ACCENT_BUTTON : GLASS_STRONG,
+                cursor: "pointer",
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center"
+            }}
+        >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 7H4v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+                <path d="M16 3v4" />
+            </svg>
+        </button>
+    );
+}
+
+function LargeBuildButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            aria-label="Build menu"
+            style={{
+                width: 104,
+                height: 104,
+                borderRadius: 20,
+                border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
+                background: active ? ACCENT_BUTTON : GLASS_STRONG,
+                cursor: "pointer",
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center"
+            }}
+        >
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={THEME.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 20 14 10" />
+                <path d="M13 6 17 2l3 3-4 4" />
+                <path d="m3 21 3-1 1-3-3 1-1 3Z" />
             </svg>
         </button>
     );
@@ -2248,6 +2229,15 @@ function GoldIcon() {
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <circle cx="10" cy="10" r="6" fill="#fbbf24" stroke="#c27803" strokeWidth="1.2" />
             <path d="M8 10.5c1.5.8 2.8.8 4 0M8 8.5c1.5-.8 2.8-.8 4 0" stroke="#92400e" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function EmeraldIcon() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <polygon points="10,4 15,8 12.5,15 7.5,15 5,8" fill="#10b981" stroke="#065f46" strokeWidth="0.9" />
+            <path d="M10 6.5 L13 8.5" stroke="#064e3b" strokeWidth="0.6" strokeLinecap="round" />
         </svg>
     );
 }

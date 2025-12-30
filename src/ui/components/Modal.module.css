@@ -1,0 +1,45 @@
+.overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30,20,5,0.0);
+  pointer-events: auto;
+  transition: background 220ms ease;
+}
+.overlayVisible{
+  background: rgba(30,20,5,0.65);
+}
+.modal{
+  transform: translateY(8px) scale(0.985);
+  opacity: 0;
+  transition: transform 220ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease;
+  will-change: transform, opacity;
+}
+.modalVisible{
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+.content{
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.actions{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.closeButton{
+  cursor: pointer;
+  border: none;
+  background: transparent;
+}

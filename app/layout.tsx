@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Nunito } from "next/font/google";
+import { ModalProvider } from "../src/ui/components/ModalContext";
 
 const font = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     a { color: inherit; }
                     button { font-family: inherit; }
                 `}</style>
-                {children}
+                <ModalProvider>
+                    {children}
+                </ModalProvider>
             </body>
         </html>
     );

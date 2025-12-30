@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { ModalContainer } from "./ModalContainer";
 import { MODAL_STYLE } from "../theme/modalStyleGuide";
