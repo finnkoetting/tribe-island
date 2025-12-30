@@ -56,6 +56,7 @@ export type SpawnerState = {
     treesNextDay: number;
     berriesNextDay: number;
     mushroomsNextDay: number;
+    dogsNextDay?: number;
 };
 
 /* =======================
@@ -116,6 +117,22 @@ export type Villager = {
     stats: VillagerStats;
     needs: VillagerNeeds;
     state: VillagerState;
+};
+
+/* =======================
+   ANIMALS
+======================= */
+
+export type AnimalTypeId =
+    | "dog";
+
+export type AnimalState = "idle" | "wandering" | "following" | "dead";
+
+export type Animal = {
+    id: Id;
+    type: AnimalTypeId;
+    pos: Vec2;
+    state: AnimalState;
 };
 
 /* =======================
@@ -242,6 +259,7 @@ export type GameState = {
     inventory: Inventory;
     buildings: Record<Id, Building>;
     villagers: Record<Id, Villager>;
+    animals: Record<Id, Animal>;
 
     quests: Record<QuestId, QuestState>;
     alerts: Record<AlertId, Alert>;

@@ -5,6 +5,7 @@ import { runPhaseSystems } from "./runPhaseSystems";
 import { progressBuildingTasks } from "../../domains/buildings/rules/progressTask";
 import { getClockMinutes, runClock } from "./runClock";
 import { updateVillagerLocations } from "../../domains/villagers/rules/updateVillagerLocations";
+import { updateAnimalLocations } from "../../domains/animals/rules/updateAnimalLocations";
 import { evaluateTutorialQuests } from "../quests/evaluateTutorial";
 
 export function tick(st: GameState, dtMs: number): GameState {
@@ -19,6 +20,7 @@ export function tick(st: GameState, dtMs: number): GameState {
     next = runClock(next, prevClock, nextClock);
 
     next = updateVillagerLocations(next, effectiveDt);
+    next = updateAnimalLocations(next, effectiveDt);
 
     if (effectiveDt > 0) {
         next = applyNeedsDrift(next, effectiveDt);

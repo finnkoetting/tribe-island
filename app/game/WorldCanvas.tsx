@@ -18,15 +18,7 @@ import meadowTile3 from "../../src/ui/game/textures/terrain/meadow/3.png";
 import mountainTile1 from "../../src/ui/game/textures/terrain/mountain/1.png";
 import mountainTile2 from "../../src/ui/game/textures/terrain/mountain/2.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
-import campfireTextureFile from "../../src/ui/game/textures/buildings/campfire/lvl1.png";
-import collectorTextureFile from "../../src/ui/game/textures/buildings/collectorhut/lvl1.png";
-import stoneTextureFile from "../../src/ui/game/textures/objects/stone.png";
-import villagerTextureFile from "../../src/ui/game/textures/objects/villager.png";
-import cowTextureFile from "../../src/ui/game/textures/objects/cow.png";
-import sheepTextureFile from "../../src/ui/game/textures/objects/sheep.png";
-import berryBushTextureFile from "../../src/ui/game/textures/objects/berrybush.png";
-import mushroomTextureFile from "../../src/ui/game/textures/objects/mushroom.png";
-import treeTextureFile from "../../src/ui/game/textures/objects/tree.png";
+import { getTextureBitmap, preloadTextures } from "../../src/ui/game/textures/loader";
 
 const TILE_W = 64;
 const TILE_H = 32;
@@ -111,9 +103,12 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [villagerTexture, setVillagerTexture] = useState<ImageBitmap | null>(null);
     const [cowTexture, setCowTexture] = useState<ImageBitmap | null>(null);
     const [sheepTexture, setSheepTexture] = useState<ImageBitmap | null>(null);
+    const [dogTexture, setDogTexture] = useState<ImageBitmap | null>(null);
     const [berryBushTexture, setBerryBushTexture] = useState<ImageBitmap | null>(null);
     const [mushroomTexture, setMushroomTexture] = useState<ImageBitmap | null>(null);
     const [campfireTexture, setCampfireTexture] = useState<ImageBitmap | null>(null);
+    const [campfireLvl2Texture, setCampfireLvl2Texture] = useState<ImageBitmap | null>(null);
+    const [campfireLvl3Texture, setCampfireLvl3Texture] = useState<ImageBitmap | null>(null);
     const [collectorTexture, setCollectorTexture] = useState<ImageBitmap | null>(null);
     const fpsFrames = useRef(0);
     const fpsLast = useRef(0);
@@ -167,9 +162,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(treeTextureFile))
+        getTextureBitmap("objects/tree")
             .then((bmp) => {
-                if (!cancelled) setTreeTexture(bmp);
+                if (!cancelled && bmp) setTreeTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load tree texture", err));
         return () => {
@@ -179,9 +174,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(stoneTextureFile))
+        getTextureBitmap("objects/stone")
             .then((bmp) => {
-                if (!cancelled) setRockTexture(bmp);
+                if (!cancelled && bmp) setRockTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load rock texture", err));
         return () => {
@@ -191,9 +186,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(villagerTextureFile))
+        getTextureBitmap("objects/villager")
             .then((bmp) => {
-                if (!cancelled) setVillagerTexture(bmp);
+                if (!cancelled && bmp) setVillagerTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load villager texture", err));
         return () => {
@@ -203,9 +198,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(cowTextureFile))
+        getTextureBitmap("objects/cow")
             .then((bmp) => {
-                if (!cancelled) setCowTexture(bmp);
+                if (!cancelled && bmp) setCowTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load cow texture", err));
         return () => {
@@ -215,9 +210,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(sheepTextureFile))
+        getTextureBitmap("objects/sheep")
             .then((bmp) => {
-                if (!cancelled) setSheepTexture(bmp);
+                if (!cancelled && bmp) setSheepTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load sheep texture", err));
         return () => {
@@ -227,9 +222,21 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(berryBushTextureFile))
+        getTextureBitmap("objects/dog")
             .then((bmp) => {
-                if (!cancelled) setBerryBushTexture(bmp);
+                if (!cancelled && bmp) setDogTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load dog texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("objects/berrybush")
+            .then((bmp) => {
+                if (!cancelled && bmp) setBerryBushTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load berry bush texture", err));
         return () => {
@@ -239,9 +246,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(mushroomTextureFile))
+        getTextureBitmap("objects/mushroom")
             .then((bmp) => {
-                if (!cancelled) setMushroomTexture(bmp);
+                if (!cancelled && bmp) setMushroomTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load mushroom texture", err));
         return () => {
@@ -251,9 +258,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(campfireTextureFile))
+        getTextureBitmap("buildings/campfire/lvl1")
             .then((bmp) => {
-                if (!cancelled) setCampfireTexture(bmp);
+                if (!cancelled && bmp) setCampfireTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load campfire texture", err));
         return () => {
@@ -263,9 +270,33 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         let cancelled = false;
-        loadImageBitmap(resolveImageSrc(collectorTextureFile))
+        getTextureBitmap("buildings/campfire/lvl2")
             .then((bmp) => {
-                if (!cancelled) setCollectorTexture(bmp);
+                if (!cancelled && bmp) setCampfireLvl2Texture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load campfire lvl2 texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("buildings/campfire/lvl3")
+            .then((bmp) => {
+                if (!cancelled && bmp) setCampfireLvl3Texture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load campfire lvl3 texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("buildings/gather_hut/lvl1")
+            .then((bmp) => {
+                if (!cancelled && bmp) setCollectorTexture(bmp);
             })
             .catch((err) => console.warn("Failed to load collector hut texture", err));
         return () => {
@@ -425,6 +456,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             collectorTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
+        if (showAnimals) drawGameAnimals(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, dogTexture);
         drawVillagers(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, villagerTexture);
 
         drawOverlays(ctx, st, hoverTile, buildMode, canPlaceHover, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
@@ -1113,11 +1145,13 @@ function drawBuildings(
         if (b.type === "campfire") {
             drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
 
-            if (campfireTexture) {
+            const tex = b.level === 3 ? (campfireLvl3Texture ?? campfireLvl2Texture ?? campfireTexture) : b.level === 2 ? (campfireLvl2Texture ?? campfireTexture) : campfireTexture;
+
+            if (tex) {
                 const centerX = b.pos.x + size.w / 2;
                 const centerY = b.pos.y + size.h / 2;
                 const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
-                drawIsoSprite(ctx, campfireTexture, sx, sy, { heightScale: 2, widthScale: 1.1, offsetY: -6 });
+                drawIsoSprite(ctx, tex, sx, sy, { heightScale: 2, widthScale: 1.1, offsetY: -6 });
             }
             continue;
         }
@@ -1605,7 +1639,56 @@ function drawVillagers(
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
+            // Draw small name label above villager (smaller)
+            if (v.name) {
+                const name = String(v.name);
+                ctx.font = "8px Space Grotesk, Segoe UI, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                const textX = cx;
+                const textY = cy - 6;
+
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "rgba(0,0,0,0.5)";
+                ctx.strokeText(name, textX, textY);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(name, textX, textY);
+            }
         });
+    }
+}
+
+function drawGameAnimals(
+    ctx: CanvasRenderingContext2D,
+    st: GameState,
+    originX: number,
+    originY: number,
+    cosA: number,
+    sinA: number,
+    dogTexture: ImageBitmap | null
+) {
+    const animals = Object.values(st.animals || {}).filter(a => a.state !== "dead");
+    if (!animals.length) return;
+
+    for (const a of animals) {
+        const { sx, sy } = tileToScreen(a.pos.x, a.pos.y, originX, originY, cosA, sinA);
+        const cx = sx + HALF_W;
+        const cy = sy + HALF_H * 0.6;
+
+        if (a.type === "dog") {
+            if (dogTexture) {
+                drawIsoSprite(ctx, dogTexture, sx, sy, { heightScale: 0.9, widthScale: 0.9, offsetY: -1 });
+            } else {
+                ctx.fillStyle = "#8B5E3C";
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 4.5, 3.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "rgba(0,0,0,0.35)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
     }
 }
 

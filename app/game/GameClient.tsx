@@ -282,6 +282,7 @@ export default function GameClient() {
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
     const [buildMenuOpen, setBuildMenuOpen] = useState(false);
     const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
+    const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [fps, setFps] = useState(0);
@@ -544,13 +545,13 @@ export default function GameClient() {
                     onClose={() => setBuildingModalOpen(false)}
                     onCollect={handleCollect}
                     onAssignWork={handleAssignWork}
-                    onOpenAssignVillager={() => setVillagerMenuOpen(true)}
+                    onOpenAssignVillager={() => setAssignVillagerOpen(true)}
                 />
 
                 {/* AssignVillagerModal: separate modal for assigning/removing villagers */}
                 <AssignVillagerModal
-                    open={villagerMenuOpen}
-                    onClose={() => setVillagerMenuOpen(false)}
+                    open={assignVillagerOpen}
+                    onClose={() => setAssignVillagerOpen(false)}
                     villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
                     assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
                     onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
@@ -1003,16 +1004,26 @@ function BuildingModal({
     if (!open || !building) return null;
 
     const meta = BUILD_META[building.type];
-    // Levelbasierte Aufgaben, immer gerade Anzahl
+    // Tasks depend on building type
     const level = building.level || 1;
-    const baseTasks = [
-        { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
-        { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
-        { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
-        { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
-    ];
-    const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
-    const tasks = baseTasks.slice(0, numTasks);
+    let tasks: Array<{ id: string; label: string; desc: string; duration: number }> = [];
+
+    if (building.type === "gather_hut") {
+        const baseTasks = [
+            { id: "short", label: "Kurze Sammelrunde", desc: "2 Beeren", duration: 30 },
+            { id: "medium", label: "Mittlere Sammelrunde", desc: "5 Beeren", duration: 60 },
+            { id: "long", label: "Lange Sammelrunde", desc: "10 Beeren", duration: 120 },
+            { id: "epic", label: "Epische Runde", desc: "20 Beeren", duration: 240 }
+        ];
+        const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
+        tasks = baseTasks.slice(0, numTasks);
+    } else if (building.type === "townhall") {
+        tasks = [{ id: "research", label: "Forschung starten", desc: "Wissen +1", duration: 120 }];
+    } else if (building.type === "sawmill") {
+        tasks = [{ id: "produce", label: "Holz verarbeiten", desc: "Bretter +4", duration: 90 }];
+    } else {
+        tasks = [];
+    }
 
     // Task-State: null = kein Auftrag aktiv
     const [activeTask, setActiveTask] = useState<string | null>(null);
@@ -1054,6 +1065,8 @@ function BuildingModal({
             }
             headerAction={
                 <button
+                    type="button"
+                    aria-label="Bewohner zuweisen"
                     title="Bewohner zuweisen"
                     style={{
                         fontSize: 20,
@@ -1063,8 +1076,14 @@ function BuildingModal({
                         padding: "6px 8px"
                     }}
                     onClick={onOpenAssignVillager}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onOpenAssignVillager();
+                        }
+                    }}
                 >
-                    <span role="img" aria-label="Villager">🧑‍🌾</span>
+                    <span role="img" aria-hidden={false} aria-label="Villager">🧑‍🌾</span>
                 </button>
             }
         >

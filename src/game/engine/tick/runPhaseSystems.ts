@@ -3,6 +3,7 @@ import { spawnDesertRocks } from "../../domains/world/rules/spawnDesertRocks";
 import { FOREST_TREE_FILL_RATIO, forestTreeShortage, spawnForestTrees } from "../../domains/world/rules/spawnForestTrees";
 import { spawnBerryBushes } from "../../domains/world/rules/spawnBerryBushes";
 import { spawnMushrooms } from "../../domains/world/rules/spawnMushrooms";
+import { spawnForestDogs } from "../../domains/world/rules/spawnForestDogs";
 
 export function runPhaseSystems(st: GameState): GameState {
     switch (st.time.phase) {
@@ -37,6 +38,7 @@ function runMorning(st: GameState): GameState {
     next = spawnTreesIfDue(next);
     next = spawnBerriesIfDue(next);
     next = spawnMushroomsIfDue(next);
+    next = spawnDogsIfDue(next);
 
     return refreshAlerts(next);
 }
@@ -156,6 +158,21 @@ function spawnMushroomsIfDue(st: GameState): GameState {
     return {
         ...after,
         spawners: { ...after.spawners, mushroomsNextDay: schedule }
+    };
+}
+
+function spawnDogsIfDue(st: GameState): GameState {
+    const nextDay = st.spawners.dogsNextDay;
+    if (!nextDay || nextDay <= 0 || st.time.day < nextDay) return st;
+
+    const rng = mulberry32((st.seed ^ 0x9e3779b9) ^ (st.time.day * 1013904223));
+    const spawnCount = 1; // spawn exactly one new dog every interval
+    const after = spawnForestDogs(st, spawnCount, rng);
+    const schedule = st.time.day + 20; // schedule next dog spawn in 20 in-game days
+
+    return {
+        ...after,
+        spawners: { ...after.spawners, dogsNextDay: schedule }
     };
 }
 
