@@ -257,7 +257,7 @@ export default function GameClient() {
         return loadSeed() ?? Date.now();
     });
     const [st, setSt] = useState<GameState>(() => engine.create.createGame(seed));
-    const [initialCamera] = useState(() => (typeof window === "undefined" ? null : loadCamera()));
+    const [initialCamera, setInitialCamera] = useState(() => (typeof window === "undefined" ? null : loadCamera()));
     const cameraSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastRef = useRef<number | null>(null);
     const rafRef = useRef<number | null>(null);
@@ -280,6 +280,8 @@ export default function GameClient() {
                 setSeed(loaded.state.seed);
                 saveSeed(loaded.state.seed);
             }
+            const cam = loadCamera();
+            if (cam) setInitialCamera(cam);
             const now = Date.now();
             setLastLoadedAt(now);
             if (loaded.savedAt) {
@@ -495,7 +497,6 @@ export default function GameClient() {
                 <TopLeftHud st={st} fps={fps} />
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
-                <HoverCard hoveredBuilding={hoveredBuilding} hoveredTileId={hoveredTileId} hoverTile={hoverTile} canPlace={canPlaceHover} buildMode={buildMode} />
                 <BuildMenu
                     open={buildMenuOpen}
                     sections={BUILD_SECTIONS}

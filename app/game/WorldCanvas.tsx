@@ -102,6 +102,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     const [hoverTile, setHoverTile] = useState<Vec2 | null>(null);
     const [cam, setCam] = useState<Camera>(initialCamera ?? { x: 0, y: 0, z: 1 });
+    const initialCamApplied = useRef<boolean>(false);
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
@@ -333,11 +334,14 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const r = wrap.getBoundingClientRect();
         const vw = Math.max(1, Math.floor(r.width));
         const vh = Math.max(1, Math.floor(r.height));
+
         setCam((prev) => {
-            const centered = { x: (worldPx.w - vw / prev.z) / 2, y: (worldPx.h - vh / prev.z) / 2, z: prev.z };
-            return clampCam(centered, vw, vh);
+            const hasInitial = Boolean(initialCamera) && !initialCamApplied.current;
+            const target = hasInitial ? initialCamera! : prev;
+            initialCamApplied.current = hasInitial || initialCamApplied.current;
+            return clampCam(target, vw, vh);
         });
-    }, [clampCam, worldPx.w, worldPx.h]);
+    }, [clampCam, worldPx.w, worldPx.h, initialCamera]);
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
