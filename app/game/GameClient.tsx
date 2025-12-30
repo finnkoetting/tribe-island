@@ -12,6 +12,9 @@ import { getBuildingSize } from "../../src/game/domains/buildings/model/building
 import type { BuildingTypeId, GameState, QuestId, Vec2 } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
 import { UI_THEME as THEME, BUILDING_COLORS } from "../../src/ui/theme";
+import { ModalContainer } from "../../src/ui/components/ModalContainer";
+import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal";
+import { MODAL_STYLE } from "../../src/ui/theme/modalStyleGuide";
 
 const GLASS_BG = "rgba(12, 16, 26, 0.78)";
 const GLASS_STRONG = "rgba(8, 12, 20, 0.9)";
@@ -541,6 +544,17 @@ export default function GameClient() {
                     onClose={() => setBuildingModalOpen(false)}
                     onCollect={handleCollect}
                     onAssignWork={handleAssignWork}
+                    onOpenAssignVillager={() => setVillagerMenuOpen(true)}
+                />
+
+                {/* AssignVillagerModal: separate modal for assigning/removing villagers */}
+                <AssignVillagerModal
+                    open={villagerMenuOpen}
+                    onClose={() => setVillagerMenuOpen(false)}
+                    villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
+                    assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
+                    onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
+                    onRemove={vid => handleAssignWork(vid, null)}
                 />
                 <VillagerMenu
                     open={villagerMenuOpen}
@@ -975,7 +989,8 @@ function BuildingModal({
     st,
     onClose,
     onCollect,
-    onAssignWork
+    onAssignWork,
+    onOpenAssignVillager
 }: {
     open: boolean;
     building: GameState["buildings"][string] | null;
@@ -983,15 +998,44 @@ function BuildingModal({
     onClose: () => void;
     onCollect: (id: string) => void;
     onAssignWork: (villagerId: string, buildingId: string | null) => void;
+    onOpenAssignVillager: () => void;
 }) {
     if (!open || !building) return null;
 
     const meta = BUILD_META[building.type];
-    const collectable = building.task.collectable && building.output;
-    const hasActiveTask = building.task.duration > 0 && building.task.progress > 0 && building.task.kind !== "none";
-    const progressPct = Math.max(0, Math.min(100, Math.round((building.task.progress / Math.max(1, building.task.duration)) * 100)));
-    const progressTone: "accent" | "ok" | "warn" = building.task.collectable ? "ok" : building.task.blocked ? "warn" : "accent";
-    const statusLabel = building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : hasActiveTask ? "Laeuft" : "Kein Auftrag";
+    // Levelbasierte Aufgaben, immer gerade Anzahl
+    const level = building.level || 1;
+    const baseTasks = [
+        { id: "short", label: "Schnelle Runde", desc: "Kleine Sammelrunde", duration: 30, required: 1 },
+        { id: "medium", label: "Gruppenrunde", desc: "Koordinierte Sammlertour", duration: 60, required: 2 },
+        { id: "long", label: "Ausdauernde Runde", desc: "Lange Sammelrunde mit besserer Ausbeute", duration: 120, required: 2 },
+        { id: "epic", label: "Expedition", desc: "Große Expedition für viele Ressourcen", duration: 240, required: 4 }
+    ];
+    const numTasks = Math.max(2, Math.min(baseTasks.length, level * 2));
+    const tasks = baseTasks.slice(0, numTasks);
+
+    // Task-State: null = kein Auftrag aktiv
+    const [activeTask, setActiveTask] = useState<string | null>(null);
+    const [selectedTask, setSelectedTask] = useState<string | null>(null);
+
+    // Nach Einsammeln: Auftrag muss neu gewählt werden
+    const handleCollect = (id: string) => {
+        onCollect(id);
+        setActiveTask(null);
+        setSelectedTask(null);
+    };
+
+    // Auftrag starten (prüft benötigte Bewohner)
+    const handleStartTask = () => {
+        if (!selectedTask) return;
+        const t = tasks.find(x => x.id === selectedTask);
+        const need = t?.required ?? 0;
+        if (assigned.length < need) {
+            alert(`Benötigt ${need} zugewiesene Bewohner. (${assigned.length} zugewiesen)`);
+            return;
+        }
+        setActiveTask(selectedTask);
+    };
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
     const assigned = building.assignedVillagerIds
@@ -1000,154 +1044,100 @@ function BuildingModal({
         .filter(v => v.state === "alive");
     const available = villagers.filter(v => !building.assignedVillagerIds.includes(v.id));
 
+    // Upgrade-Logik (Platzhalter)
+    const canUpgrade = true;
+    const upgradeCost = "10 Holz, 5 Stein";
+
+    const requiredForSelected = selectedTask ? (tasks.find(t => t.id === selectedTask)?.required ?? 0) : 0;
+
     return (
-        <div
-            style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "auto",
-                background: "linear-gradient(180deg, rgba(4,6,12,0.82) 0%, rgba(4,6,12,0.7) 100%)",
-                padding: 24,
-                zIndex: 20
-            }}
+        <ModalContainer
+            onClose={onClose}
+            title={
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {meta?.title ?? building.type}
+                    <Badge label={`Lvl ${building.level}`} tone="muted" />
+                </span>
+            }
+            headerAction={
+                <button
+                    title="Bewohner zuweisen"
+                    style={{
+                        fontSize: 20,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "6px 8px"
+                    }}
+                    onClick={onOpenAssignVillager}
+                >
+                    <span role="img" aria-label="Villager">🧑‍🌾</span>
+                </button>
+            }
         >
-            <div
-                style={{
-                    width: "min(540px, 94vw)",
-                    borderRadius: 16,
-                    border: PANEL_BORDER,
-                    boxShadow: THEME.panelShadow,
-                    background: `${CARD_BG}, ${GRADIENT_EDGE}`,
-                    padding: 16,
-                    display: "grid",
-                    gap: 12,
-                    imageRendering: "pixelated"
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <div style={{ display: "grid", gap: 4 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span
-                                style={{
-                                    width: 12,
-                                    height: 12,
-                                    borderRadius: 3,
-                                    background: BUILDING_COLORS[building.type] ?? THEME.accent,
-                                    boxShadow: "0 0 0 1px rgba(0,0,0,0.18)"
-                                }}
-                            />
-                            <div style={{ fontWeight: 900, fontSize: 16, letterSpacing: 0.2 }}>{meta?.title ?? building.type}</div>
-                        </div>
-                        <div style={{ fontSize: 12, opacity: 0.75 }}>ID: {building.id}</div>
-                        {meta && <div style={{ fontSize: 12, opacity: 0.82 }}>Effekt: {meta.effect}</div>}
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <Badge label={`Lvl ${building.level}`} tone="muted" />
-                        <button
-                            onClick={onClose}
-                            style={{
-                                border: PANEL_BORDER,
-                                background: ACCENT_BUTTON,
-                                borderRadius: 12,
-                                padding: "9px 14px",
-                                cursor: "pointer",
-                                fontWeight: 800,
-                                color: THEME.text,
-                                boxShadow: THEME.accentGlow
-                            }}
-                        >
-                            Schliessen
-                        </button>
-                    </div>
-                </div>
 
-                <div style={{ display: "grid", gap: 10 }}>
-                    {(hasActiveTask || collectable) && (
-                        <div style={{ border: PANEL_BORDER, borderRadius: 12, background: GLASS_BG, padding: 12, boxShadow: THEME.panelShadow }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div style={{ fontWeight: 800 }}>Auftrag</div>
-                                <Badge label={statusLabel} tone={collectable ? "ok" : building.task.blocked ? "warn" : "accent"} />
-                            </div>
-                            {hasActiveTask && (
-                                <>
-                                    <div style={{ fontSize: 12, opacity: 0.8, display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
-                                        <span>{progressPct}%</span>
-                                        {building.output && <span>Ausgabe: {building.output.amount} {building.output.resource}</span>}
-                                    </div>
-                                    <ProgressBar value={progressPct} tone={progressTone} />
-                                </>
-                            )}
-                            {collectable && (
-                                <button
-                                    onClick={() => onCollect(building.id)}
-                                    style={{
-                                        marginTop: 8,
-                                        padding: "8px 12px",
-                                        borderRadius: 10,
-                                        border: "2px solid #1f1b2d",
-                                        background: "linear-gradient(135deg, #c1ff72, #7edd52)",
-                                        cursor: "pointer",
-                                        fontWeight: 900,
-                                        boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
-                                        letterSpacing: 0.2
-                                    }}
-                                >
-                                    Einsammeln
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    <div
+            {/* Auftragsauswahl */}
+            <div style={{ display: "flex", gap: 12, margin: "0 0 10px 0" }}>
+                {tasks.map(task => (
+                    <button
+                        key={task.id}
+                        onClick={() => setSelectedTask(task.id)}
+                        disabled={!!activeTask}
                         style={{
-                            border: "2px solid #1f1b2d",
-                            borderRadius: 10,
-                            background: "rgba(250,245,235,0.92)",
-                            padding: 12,
-                            display: "grid",
-                            gap: 10
+                            ...MODAL_STYLE.button,
+                            background: selectedTask === task.id ? MODAL_STYLE.button.background : "#fffbe6",
+                            color: selectedTask === task.id ? MODAL_STYLE.button.color : "#7a6a3a",
+                            border: selectedTask === task.id ? MODAL_STYLE.button.border : "2px solid #e2c17c55",
+                            fontSize: 15,
+                            minWidth: 120,
+                            boxShadow: selectedTask === task.id ? MODAL_STYLE.button.boxShadow : "none",
+                            opacity: activeTask ? 0.5 : 1,
+                            cursor: activeTask ? "not-allowed" : "pointer"
                         }}
                     >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ fontWeight: 800 }}>Zugewiesene Bewohner ({assigned.length})</div>
-                            <Badge label={`${available.length} frei`} tone="muted" />
-                        </div>
-
-                        <div style={{ display: "grid", gap: 8 }}>
-                            {assigned.length === 0 && <div style={{ fontSize: 12, opacity: 0.65 }}>Keine Bewohner zugewiesen.</div>}
-                            {assigned.map(v => (
-                                <VillagerRow
-                                    key={v.id}
-                                    v={v}
-                                    actionLabel="Entfernen"
-                                    onAction={() => onAssignWork(v.id, null)}
-                                    tone="accent"
-                                />
-                            ))}
-                        </div>
-
-                        {available.length > 0 && (
-                            <div style={{ borderTop: "1px dashed rgba(0,0,0,0.12)", paddingTop: 10, display: "grid", gap: 8 }}>
-                                <div style={{ fontWeight: 800 }}>Verfuegbar</div>
-                                {available.slice(0, 5).map(v => (
-                                    <VillagerRow
-                                        key={v.id}
-                                        v={v}
-                                        actionLabel="Zuweisen"
-                                        onAction={() => onAssignWork(v.id, building.id)}
-                                        tone="ok"
-                                    />
-                                ))}
-                                {available.length > 5 && <div style={{ fontSize: 11, opacity: 0.6 }}>… {available.length - 5} weitere verfuegbar</div>}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                        <div style={{ fontWeight: 900 }}>{task.label}</div>
+                        <div style={{ fontSize: 12, opacity: 0.8 }}>{task.desc}</div>
+                        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 6 }}>Benötigt: {task.required ?? 0} Bewohner</div>
+                    </button>
+                ))}
             </div>
-        </div>
+
+            {/* Start-Button für Auftrag */}
+            {!activeTask && selectedTask && (
+                <div style={{ margin: "0 0 18px 0", textAlign: "center" }}>
+                    <button
+                        disabled={assigned.length < requiredForSelected}
+                        style={{
+                            ...MODAL_STYLE.button,
+                            fontSize: 15,
+                            minWidth: 160,
+                            opacity: assigned.length < requiredForSelected ? 0.5 : 1,
+                            cursor: assigned.length < requiredForSelected ? "not-allowed" : "pointer"
+                        }}
+                        onClick={handleStartTask}
+                    >
+                        Auftrag starten
+                    </button>
+                    {assigned.length < requiredForSelected && (
+                        <div style={{ fontSize: 12, color: "#ffb4a2", marginTop: 8 }}>Benötigt {requiredForSelected} zugewiesene Bewohner, aktuell {assigned.length}.</div>
+                    )}
+                </div>
+            )}
+
+            {/* Bewohner-Zuweisung: jetzt im separaten Modal (öffnet per Button) */}
+
+            {/* Upgrade-Bereich */}
+            {canUpgrade && (
+                <div style={{ marginTop: 18, textAlign: "center" }}>
+                    <button
+                        style={{ ...MODAL_STYLE.button, fontSize: 16, minWidth: 180 }}
+                        onClick={() => alert("Upgrade kommt bald!")}
+                    >
+                        Gebäude upgraden ({upgradeCost})
+                    </button>
+                </div>
+            )}
+        </ModalContainer>
     );
 }
 
@@ -1184,68 +1174,72 @@ function Badge({ label, tone = "muted" }: { label: string; tone?: "muted" | "ok"
 function VillagerRow({ v, actionLabel, onAction, tone }: { v: GameState["villagers"][string]; actionLabel: string; onAction: () => void; tone: "ok" | "accent" }) {
     const hunger = Math.round(v.needs.hunger * 100);
     const energy = Math.round(v.needs.energy * 100);
-    const palette = tone === "ok" ? { border: "#2f4f1f", bg: "#f3ffe6" } : { border: "#2b1a10", bg: "#fff0de" };
+    // Neues, kontrastreicheres Design für bessere Lesbarkeit im Modal
+    const palette = tone === "ok"
+        ? { border: "#3e5c2c", bg: "linear-gradient(90deg, #232a1c 60%, #2e3c24 100%)", color: "#eaffd0" }
+        : { border: "#7c5c2c", bg: "linear-gradient(90deg, #2e241c 60%, #3c2e24 100%)", color: "#ffe7b0" };
 
     return (
         <div
             style={{
                 border: `2px solid ${palette.border}`,
-                borderRadius: 10,
-                padding: 10,
+                borderRadius: 12,
+                padding: 14,
                 background: palette.bg,
+                color: palette.color,
                 display: "grid",
                 gridTemplateColumns: "1fr auto",
-                gap: 8,
+                gap: 10,
                 alignItems: "center",
-                fontSize: 12
+                fontSize: 15,
+                boxShadow: "0 2px 12px #0003"
             }}
         >
-            <div style={{ display: "grid", gap: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                        style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 10,
-                            background: ACCENT_BUTTON,
-                            border: PANEL_BORDER,
-                            display: "grid",
-                            placeItems: "center",
-                            fontWeight: 800,
-                            color: THEME.text,
-                            boxShadow: THEME.accentGlow
-                        }}
-                    >
-                        {v.name.slice(0, 1)}
-                    </span>
+            <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span
+                            style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: 12,
+                                background: palette.bg,
+                                border: `2px solid ${palette.border}`,
+                                display: "grid",
+                                placeItems: "center",
+                                fontWeight: 900,
+                                color: palette.color,
+                                fontSize: 18
+                            }}
+                        >
+                            {v.name.slice(0, 1)}
+                        </span>
                     <div style={{ display: "grid", gap: 2 }}>
-                        <div style={{ fontWeight: 800 }}>{v.name}</div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", opacity: 0.8 }}>
+                        <div style={{ fontWeight: 900, fontSize: 17 }}>{v.name}</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.9, fontSize: 13 }}>
                             <span>#{v.id}</span>
-                            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, border: CHIP_BORDER, background: MUTED_BG }}>
-                                {v.job}
-                            </span>
+                            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 7, border: `1.5px solid ${palette.border}` }}>{v.job}</span>
                         </div>
                     </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", opacity: 0.85 }}>
-                    <small>Hunger {hunger}%</small>
-                    <small>Energie {energy}%</small>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", opacity: 0.95, fontSize: 13, marginTop: 2 }}>
+                    <span>🍗 Hunger {hunger}%</span>
+                    <span>💤 Energie {energy}%</span>
                 </div>
             </div>
             <button
                 onClick={onAction}
                 style={{
                     border: `2px solid ${palette.border}`,
-                    background: tone === "ok" ? "linear-gradient(135deg, #8df5c4, #4ad1a1)" : ACCENT_BUTTON,
+                    background: tone === "ok" ? "linear-gradient(135deg, #b6ffb6, #7ed957)" : "linear-gradient(135deg, #ffe7b0, #e2c17c)",
                     borderRadius: 10,
-                    padding: "10px 12px",
+                    padding: "12px 18px",
                     cursor: "pointer",
                     fontWeight: 900,
-                    minWidth: 110,
-                    height: 44,
-                    color: THEME.text,
-                    boxShadow: THEME.accentGlow
+                    minWidth: 120,
+                    height: 48,
+                    color: "#232a1c",
+                    fontSize: 15,
+                    boxShadow: "0 2px 8px #0002"
                 }}
             >
                 {actionLabel}
