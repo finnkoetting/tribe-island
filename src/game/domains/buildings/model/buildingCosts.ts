@@ -17,7 +17,7 @@ export const BUILDING_COSTS: Record<BuildingTypeId, BuildingCost> = {
     mushroom: {}
 };
 
-const COST_ORDER: ResourceId[] = ["wood", "berries", "fish", "stone", "fibers", "planks", "medicine", "knowledge", "gold"];
+const COST_ORDER: ResourceId[] = ["wood", "berries", "mushrooms", "wheat", "rope", "fish", "stone", "fibers", "planks", "medicine", "knowledge", "gold"];
 
 export function formatCost(cost: BuildingCost): string {
     const parts = COST_ORDER
@@ -29,6 +29,12 @@ export function formatCost(cost: BuildingCost): string {
                     ? "Holz"
                     : resource === "berries"
                     ? "Beeren"
+                    : resource === "mushrooms"
+                    ? "Pilze"
+                    : resource === "wheat"
+                    ? "Weizen"
+                    : resource === "rope"
+                    ? "Seile"
                     : resource === "fish"
                     ? "Fisch"
                     : resource === "stone"

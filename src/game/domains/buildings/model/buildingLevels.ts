@@ -13,19 +13,19 @@ export type BuildingLevelSpec = {
 
 export const BUILDING_LEVELS: Partial<Record<BuildingTypeId, BuildingLevelSpec[]>> = {
     gather_hut: [
-        { level: 1, workers: 1, outputAmount: 1, taskDurationMs: 60000, notes: "mushrooms" },
-        { level: 2, cost: { wood: 8, planks: 2 }, workers: 2, outputAmount: 2, taskDurationMs: 55000, notes: "berries" },
-        { level: 3, cost: { planks: 6, fibers: 8 }, workers: 2, outputAmount: 4, taskDurationMs: 50000, notes: "fruit salad recipe unlocked" },
-        { level: 4, cost: { planks: 10, fibers: 8, stone: 2 }, workers: 3, outputAmount: 6, taskDurationMs: 45000, notes: "vorratskorb recipe unlocked" }
+        { level: 1, workers: 1, outputAmount: 1, taskDurationMs: 45000, notes: "Pilze pflücken verfügbar" },
+        { level: 2, cost: { wood: 8, planks: 2 }, workers: 2, outputAmount: 2, taskDurationMs: 50000, notes: "Beeren sammeln verfügbar" },
+        { level: 3, cost: { planks: 6, wheat: 5, rope: 3 }, workers: 2, outputAmount: 4, taskDurationMs: 60000, notes: "Fruchtsalat: 2 Beeren +1 Pilz" },
+        { level: 4, cost: { planks: 10, wheat: 8, rope: 5, stone: 2 }, workers: 3, outputAmount: 6, taskDurationMs: 75000, notes: "Vorratskorb: 3 Beeren +2 Pilze" }
     ],
     campfire: [
-        { level: 1, workers: 1, taskDurationMs: 0, notes: "basic campfire: watch & night regen" },
-        { level: 2, cost: { planks: 6, fibers: 8 }, workers: 2, taskDurationMs: 0, notes: "daily watch task unlocked" }
+        { level: 1, workers: 1, taskDurationMs: 0, notes: "Grund: Wache + Nachtregeneration" },
+        { level: 2, cost: { planks: 6, wheat: 5, rope: 3 }, workers: 2, taskDurationMs: 0, notes: "Tageswache-Auftrag freigeschaltet" }
     ],
     sawmill: [
         { level: 1, workers: 1, outputAmount: 1, taskDurationMs: 90000 },
-        { level: 2, cost: { wood: 6, planks: 2 }, workers: 2, outputAmount: 2, taskDurationMs: 85000, notes: "debark -> planks" },
-        { level: 3, cost: { planks: 6, fibers: 3 }, workers: 2, outputAmount: 2, taskDurationMs: 80000, notes: "cut planks from wood" }
+        { level: 2, cost: { wood: 6, planks: 2 }, workers: 2, outputAmount: 2, taskDurationMs: 85000, notes: "Gezieltes Fällen (+2 Holz)" },
+        { level: 3, cost: { planks: 6, rope: 3, wheat: 4 }, workers: 2, outputAmount: 2, taskDurationMs: 80000, notes: "Bretter zuschneiden (+2 Bretter)" }
     ],
     townhall: [
         { level: 1, workers: 1, taskDurationMs: 120000, notes: "unlock job assignment & village quests" }
