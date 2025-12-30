@@ -381,14 +381,17 @@ export default function GameClient() {
     const handleTileClick = (pos: Vec2) => {
         setSt(prev => {
             const building = findBuildingAt(prev, pos);
-            let next: GameState;
+            let next: GameState = { ...prev, selection: { kind: "tile", pos } };
+            setBuildingModalOpen(false);
 
             if (building) {
-                next = { ...prev, selection: { kind: "building", id: building.id } };
-                setBuildingModalOpen(true);
-            } else {
-                next = { ...prev, selection: { kind: "tile", pos } };
-                setBuildingModalOpen(false);
+                next = { ...next, selection: { kind: "building", id: building.id } };
+
+                // Only open modal for real buildings, not resources.
+                const nonModalTypes: BuildingTypeId[] = ["rock", "tree", "berry_bush", "mushroom", "road"];
+                if (!nonModalTypes.includes(building.type)) {
+                    setBuildingModalOpen(true);
+                }
             }
 
             if (buildMode && BUILDABLE_TYPE_SET.has(buildMode)) {
@@ -855,9 +858,10 @@ function BuildingModal({
 
     const meta = BUILD_META[building.type];
     const collectable = building.task.collectable && building.output;
+    const hasActiveTask = building.task.duration > 0 && building.task.progress > 0 && building.task.kind !== "none";
     const progressPct = Math.max(0, Math.min(100, Math.round((building.task.progress / Math.max(1, building.task.duration)) * 100)));
     const progressTone: "accent" | "ok" | "warn" = building.task.collectable ? "ok" : building.task.blocked ? "warn" : "accent";
-    const statusLabel = building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : "Laeuft";
+    const statusLabel = building.task.collectable ? "Abholbereit" : building.task.blocked ? "Blockiert" : hasActiveTask ? "Laeuft" : "Kein Auftrag";
 
     const villagers = Object.values(st.villagers).filter(v => v.state === "alive");
     const assigned = building.assignedVillagerIds
@@ -931,35 +935,41 @@ function BuildingModal({
                 </div>
 
                 <div style={{ display: "grid", gap: 10 }}>
-                    <div style={{ border: "2px solid #1f1b2d", borderRadius: 10, background: "rgba(255,255,255,0.92)", padding: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ fontWeight: 800 }}>Auftrag</div>
-                            <Badge label={statusLabel} tone={collectable ? "ok" : building.task.blocked ? "warn" : "accent"} />
+                    {(hasActiveTask || collectable) && (
+                        <div style={{ border: "2px solid #1f1b2d", borderRadius: 10, background: "rgba(255,255,255,0.92)", padding: 12 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div style={{ fontWeight: 800 }}>Auftrag</div>
+                                <Badge label={statusLabel} tone={collectable ? "ok" : building.task.blocked ? "warn" : "accent"} />
+                            </div>
+                            {hasActiveTask && (
+                                <>
+                                    <div style={{ fontSize: 12, opacity: 0.8, display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+                                        <span>{progressPct}%</span>
+                                        {building.output && <span>Ausgabe: {building.output.amount} {building.output.resource}</span>}
+                                    </div>
+                                    <ProgressBar value={progressPct} tone={progressTone} />
+                                </>
+                            )}
+                            {collectable && (
+                                <button
+                                    onClick={() => onCollect(building.id)}
+                                    style={{
+                                        marginTop: 8,
+                                        padding: "8px 12px",
+                                        borderRadius: 10,
+                                        border: "2px solid #1f1b2d",
+                                        background: "linear-gradient(135deg, #c1ff72, #7edd52)",
+                                        cursor: "pointer",
+                                        fontWeight: 900,
+                                        boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
+                                        letterSpacing: 0.2
+                                    }}
+                                >
+                                    Einsammeln
+                                </button>
+                            )}
                         </div>
-                        <div style={{ fontSize: 12, opacity: 0.8, display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
-                            <span>{progressPct}%</span>
-                            {building.output && <span>Ausgabe: {building.output.amount} {building.output.resource}</span>}
-                        </div>
-                        <ProgressBar value={progressPct} tone={progressTone} />
-                        {collectable && (
-                            <button
-                                onClick={() => onCollect(building.id)}
-                                style={{
-                                    marginTop: 8,
-                                    padding: "8px 12px",
-                                    borderRadius: 10,
-                                    border: "2px solid #1f1b2d",
-                                    background: "linear-gradient(135deg, #c1ff72, #7edd52)",
-                                    cursor: "pointer",
-                                    fontWeight: 900,
-                                    boxShadow: "0 10px 20px rgba(0,0,0,0.15)",
-                                    letterSpacing: 0.2
-                                }}
-                            >
-                                Einsammeln
-                            </button>
-                        )}
-                    </div>
+                    )}
 
                     <div
                         style={{
