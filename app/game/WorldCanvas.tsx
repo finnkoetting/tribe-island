@@ -34,7 +34,7 @@ const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;
 const DEG2RAD = Math.PI / 180;
 const MAX_DPR = 1.5;
-const MIN_ZOOM = 1.4;
+const MIN_ZOOM = 1.3;
 const ANIMAL_DETAIL_Z = 1.08;
 
 const TILE_COLORS: Record<WorldTileId, string> = {
@@ -61,7 +61,7 @@ const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
     desert: [desertTile1, desertTile2, desertTile3]
 };
 
-import { BUILDING_COLORS } from "../../src/ui/theme";
+import { BUILDING_COLORS, UI_THEME as THEME } from "../../src/ui/theme";
 
 const VILLAGER_COLOR = "#1f2937";
 const ANIMAL_STYLES = {
@@ -624,8 +624,20 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                 const anchorX = b.pos.x + size.w / 2;
                 const anchorY = b.pos.y + size.h / 2;
                 const { sx, sy } = tileToScreen(anchorX, anchorY, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
-                const px = (sx - cam.x) * cam.z;
-                const py = (sy - cam.y) * cam.z;
+
+                // Use tile center as reference and nudge upward relative to footprint height for better alignment.
+                const centerX = sx + HALF_W;
+                const centerY = sy + HALF_H;
+
+                const yOffsetTiles = Math.max(0.8, size.h * 0.75);
+                const yOffsetPx = yOffsetTiles * HALF_H + 25;
+
+                // For non-square footprints, compensate X so the bar stays centered visually.
+                const xOffsetTiles = (size.w - size.h) * 0.5 + .1;
+                const xOffsetPx = xOffsetTiles * HALF_W;
+
+                const px = ((centerX + xOffsetPx) - cam.x) * cam.z;
+                const py = ((centerY - yOffsetPx) - cam.y) * cam.z;
                 return { b, px, py };
             })
             .filter((entry) => entry.px >= -margin && entry.px <= vw + margin && entry.py >= -margin && entry.py <= vh + margin)
@@ -677,66 +689,118 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {buildingOverlays.map(card => {
                     const color = BUILDING_COLORS[card.type] || "#f97316";
-                    const barColor = card.collectable ? "#22c55e" : card.blocked ? "#ef4444" : color;
+                    const barColor = card.blocked ? "#ef4444" : color;
+                    const showProgress = !card.collectable;
+                    const showCollectIcon = card.collectable && Boolean(onCollectBuilding);
+
+                    const uiScale = Math.max(0.55, Math.min(1.4, cam.z));
+
+                    // Keep overlay UI at a constant on-screen size (not affected by camera zoom).
+                    const barWidth = 75 * uiScale;
+                    const barHeight = 8 * uiScale;
+                    const barPadding = 1 * uiScale;
+                    const borderPx = Math.max(0.75, 1 * uiScale);
+
+                    if (!showProgress && !showCollectIcon) return null;
+
                     return (
                         <div
                             key={card.id}
-                            style={{ position: "absolute", left: card.x, top: card.y, transform: "translate(-50%, -110%)", pointerEvents: "none" }}
+                            style={{
+                                position: "absolute",
+                                left: card.x,
+                                top: card.y,
+                                transform: "translate(-50%, -140%)",
+                                pointerEvents: "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                            }}
                         >
-                            <div
-                                style={{
-                                    minWidth: 120,
-                                    maxWidth: 170,
-                                    padding: "8px 10px",
-                                    borderRadius: 10,
-                                    background: "rgba(255,255,255,0.92)",
-                                    border: `1px solid ${applyAlpha(color, 0.35)}`,
-                                    boxShadow: "0 10px 22px rgba(0,0,0,0.28)",
-                                    pointerEvents: "auto"
-                                }}
-                                onMouseDown={e => e.stopPropagation()}
-                                onMouseUp={e => e.stopPropagation()}
-                                onClick={e => e.stopPropagation()}
-                            >
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", fontSize: 11, marginBottom: 4 }}>
-                                    <span style={{ fontWeight: 700 }}>Auftrag</span>
-                                    <span style={{ opacity: 0.7 }}>{card.progress}%</span>
-                                </div>
-                                <div style={{ width: "100%", height: 8, borderRadius: 6, background: "rgba(0,0,0,0.08)", overflow: "hidden", marginBottom: 6 }}>
-                                    <div style={{ width: `${card.progress}%`, height: "100%", background: barColor, transition: "width 0.2s ease" }} />
-                                </div>
-                                {card.output && (
-                                    <div style={{ fontSize: 11, opacity: 0.75, marginBottom: card.collectable ? 6 : 0 }}>
-                                        Output: {card.output.amount} {card.output.resource}
-                                    </div>
-                                )}
-                                {card.collectable && onCollectBuilding && (
-                                    <button
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            onCollectBuilding(card.id);
-                                        }}
+                            {showProgress && (
+                                <div
+                                    style={{
+                                        position: "relative",
+                                        width: barWidth,
+                                        height: barHeight,
+                                        borderRadius: 999,
+                                        padding: barPadding,
+                                        background: "linear-gradient(180deg, rgba(255,248,235,0.95) 0%, rgba(255,231,200,0.92) 100%)",
+                                        border: `${borderPx}px solid ${applyAlpha(color, 0.55)}`,
+                                        boxShadow: THEME.panelShadow,
+                                        overflow: "hidden"
+                                    }}
+                                >
+                                    <div
                                         style={{
-                                            width: "100%",
-                                            padding: "6px 8px",
-                                            borderRadius: 8,
-                                            border: `1px solid ${applyAlpha(color, 0.7)}`,
-                                            background: "linear-gradient(135deg, #ffd9a3, #ffb38a)",
-                                            cursor: "pointer",
-                                            fontWeight: 800,
-                                            color: "#2e1b10"
+                                            width: `${card.progress}%`,
+                                            height: "100%",
+                                            borderRadius: 999,
+                                            background: `linear-gradient(90deg, ${applyAlpha(barColor, 0.85)} 0%, ${barColor} 60%, ${applyAlpha(barColor, 0.9)} 100%)`,
+                                            boxShadow: `inset 0 0 0 1px ${applyAlpha("#000000", 0.12)}`,
+                                            transition: "width 0.2s ease"
                                         }}
-                                    >
-                                        Einsammeln
-                                    </button>
-                                )}
-                                {card.blocked && !card.collectable && <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 4 }}>Blockiert</div>}
-                            </div>
+                                    />
+                                    <div
+                                        aria-hidden
+                                        style={{
+                                            position: "absolute",
+                                            inset: 1,
+                                            borderRadius: 999,
+                                            background: "linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 60%)"
+                                        }}
+                                    />
+                                </div>
+                            )}
+
+                            {showCollectIcon && (
+                                <button
+                                    aria-label="Einsammeln"
+                                    onClick={e => {
+                                        e.stopPropagation();
+                                        onCollectBuilding?.(card.id);
+                                    }}
+                                    style={{
+                                        pointerEvents: "auto",
+                                        display: "grid",
+                                        placeItems: "center",
+                                        width: 46,
+                                        height: 46,
+                                        borderRadius: 12,
+                                        marginTop: -4,
+                                        border: "none",
+                                        background: "linear-gradient(135deg, #fff7ed, #ffe4e6)",
+                                        boxShadow: "0 10px 22px rgba(0,0,0,0.28)",
+                                        cursor: "pointer"
+                                    }}
+                                >
+                                    <BerryIcon size={30} />
+                                </button>
+                            )}
                         </div>
                     );
                 })}
             </div>
         </div>
+    );
+}
+
+function BerryIcon({ size = 32 }: { size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 48 48"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden
+            focusable="false"
+        >
+            <circle cx="22" cy="26" r="12" fill="#9d174d" stroke="#7f1d1d" strokeWidth="2" />
+            <circle cx="26" cy="22" r="10" fill="#be185d" opacity="0.9" />
+            <circle cx="19" cy="21" r="6" fill="rgba(255,255,255,0.18)" />
+            <path d="M26 14c4-5 10-6 12-3-3 1-6 5-7 9" fill="#22c55e" stroke="#15803d" strokeWidth="2" strokeLinecap="round" />
+        </svg>
     );
 }
 
@@ -1065,7 +1129,7 @@ function drawBuildings(
                 const centerX = b.pos.x + size.w / 2;
                 const centerY = b.pos.y + size.h / 2;
                 const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
-                drawIsoSprite(ctx, collectorTexture, sx, sy, { heightScale: 2.6, widthScale: 1, offsetY: -10 });
+                drawIsoSprite(ctx, collectorTexture, sx + 1, sy + 12, { heightScale: 2.6, widthScale: 1, offsetY: -10 });
             } else {
                 fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
             }

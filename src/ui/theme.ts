@@ -13,16 +13,16 @@ export type UiTheme = {
 
 export const UI_THEME: UiTheme = {
     background:
-        "radial-gradient(circle at 24% 18%, rgba(255,235,200,0.92) 0%, rgba(248,219,158,0.78) 40%, rgba(227,184,102,0.62) 68%, rgba(126,88,38,0.32) 100%)",
-    text: "#2c1d0d",
-    panelBg: "rgba(255, 241, 214, 0.82)",
-    panelBorder: "rgba(255, 210, 140, 0.7)",
-    panelShadow: "0 18px 36px rgba(80, 52, 20, 0.28)",
-    chipBg: "rgba(255, 250, 236, 0.9)",
-    chipBorder: "rgba(120, 82, 40, 0.25)",
-    accent: "#f5b642",
-    accentGlow: "0 14px 32px rgba(245, 182, 66, 0.35)",
-    overlayGradient: "linear-gradient(180deg, rgba(255,228,190,0) 0%, rgba(255,210,140,0.38) 55%, rgba(132,90,40,0.22) 100%)"
+        "radial-gradient(circle at 18% 20%, #1d2f4b 0%, #0f192d 36%, #0b1224 62%, #070d18 100%)",
+    text: "#e9edf5",
+    panelBg: "rgba(14, 18, 32, 0.82)",
+    panelBorder: "rgba(124, 243, 255, 0.25)",
+    panelShadow: "0 22px 60px rgba(0, 0, 0, 0.55)",
+    chipBg: "rgba(255, 255, 255, 0.04)",
+    chipBorder: "rgba(255, 255, 255, 0.1)",
+    accent: "#7cf3ff",
+    accentGlow: "0 16px 40px rgba(124, 243, 255, 0.45)",
+    overlayGradient: "linear-gradient(180deg, rgba(64,180,255,0) 0%, rgba(64,180,255,0.18) 50%, rgba(32,130,200,0.26) 100%)"
 };
 
 export const BUILDING_COLORS: Partial<Record<string, string>> = {

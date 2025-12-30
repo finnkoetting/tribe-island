@@ -13,6 +13,17 @@ import type { BuildingTypeId, GameState, QuestId, Vec2 } from "../../src/game/ty
 import WorldCanvas from "./WorldCanvas";
 import { UI_THEME as THEME, BUILDING_COLORS } from "../../src/ui/theme";
 
+const GLASS_BG = "rgba(12, 16, 26, 0.78)";
+const GLASS_STRONG = "rgba(8, 12, 20, 0.9)";
+const CARD_BG = "linear-gradient(145deg, rgba(22, 32, 52, 0.96), rgba(12, 18, 32, 0.94))";
+const MUTED_BG = "rgba(255, 255, 255, 0.03)";
+const GRADIENT_EDGE = "linear-gradient(135deg, rgba(124,243,255,0.12), rgba(86,122,255,0.18))";
+const ACCENT_BUTTON = "linear-gradient(135deg, #7cf3ff, #4de0e6)";
+const SECONDARY_BUTTON = "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))";
+const PANEL_BORDER = `1px solid ${THEME.panelBorder}`;
+const CHIP_BORDER = `1px solid ${THEME.chipBorder}`;
+const CARD_MIN_HEIGHT = 210;
+
 type BuildItem = {
     id: string;
     title: string;
@@ -315,6 +326,7 @@ export default function GameClient() {
     }, []);
 
 
+
     const aliveVillagers = useMemo(() => Object.values(st.villagers).filter(v => v.state === "alive"), [st.villagers]);
     const hoveredBuilding = useMemo(() => {
         if (!hoverTile) return null;
@@ -453,6 +465,18 @@ export default function GameClient() {
         resetWithSeed(nextSeed);
     };
 
+    // Keyboard: R to reset current seed.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.code === "KeyR") {
+                e.preventDefault();
+                resetWithSeed(seed);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [seed]);
+
     const findBuildingAt = (state: GameState, pos: Vec2) => {
         return Object.values(state.buildings).find(b => {
             const size = getBuildingSize(b.type);
@@ -476,7 +500,7 @@ export default function GameClient() {
                 overflow: "hidden",
                 background: THEME.background,
                 color: THEME.text,
-                fontFamily: "Nunito, system-ui, sans-serif"
+                fontFamily: "Space Grotesk, 'Segoe UI', sans-serif"
             }}
         >
             <div style={{ position: "absolute", inset: 0 }}>
@@ -497,7 +521,7 @@ export default function GameClient() {
             </div>
 
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                <TopLeftHud st={st} fps={fps} />
+                <TopLeftHud st={st} />
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
                 <TopRightResources st={st} />
                 <BuildMenu
@@ -543,7 +567,7 @@ export default function GameClient() {
     );
 }
 
-function TopLeftHud({ st, fps }: { st: GameState; fps: number }) {
+function TopLeftHud({ st }: { st: GameState }) {
     return (
         <div
             style={{
@@ -562,12 +586,115 @@ function TopLeftHud({ st, fps }: { st: GameState; fps: number }) {
         >
             <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: -0.2 }}>Tribe Island</div>
             <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                <Tag label="Phase" value={st.time.phase} />
-                <Tag label="FPS" value={Math.round(fps).toString()} />
+                <Tag label="Phase" value={String(st.time.phase)} />
+                <Tag
+                    label="Uhrzeit"
+                    value={formatGameClock(st.time)}
+                />
                 <Tag label="Tag" value={String(st.time.day)} />
             </div>
         </div>
     );
+}
+
+function formatGameClock(time: GameState["time"]) {
+    const t = time as unknown as Record<string, unknown>;
+    const pad2 = (n: number) => String(Math.floor(n)).padStart(2, "0");
+
+    const toClock = (minuteOfDay: number) => {
+        // Normalize to [0, 1440)
+        const clamped = ((Math.floor(minuteOfDay) % (24 * 60)) + 24 * 60) % (24 * 60);
+        const hh = Math.floor(clamped / 60);
+        const mm = clamped % 60;
+        return `${pad2(hh)}:${pad2(mm)}`;
+    };
+
+    const asNumber = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+    const parseTimeOfDay = (v: number): string | null => {
+        // Heuristics:
+        // - 0..1 => fraction of day
+        // - 0..24 => hours (fractional)
+        // - 0..1440 => minutes since day start
+        // - 0..86400 => seconds since day start
+        // - 0..86400000 => milliseconds since day start
+        // Otherwise: unknown
+
+        const abs = Math.abs(v);
+
+        // Fraction of day.
+        if (abs <= 1) {
+            const f = ((v % 1) + 1) % 1;
+            return toClock(f * 24 * 60);
+        }
+
+        // Hours (commonly 0..24, sometimes fractional).
+        if (abs <= 24) {
+            const hours = ((v % 24) + 24) % 24;
+            const minutes = Math.floor(hours * 60);
+            return toClock(minutes);
+        }
+
+        // Minutes.
+        if (abs <= 24 * 60) {
+            return toClock(v);
+        }
+
+        // Seconds.
+        if (abs <= 24 * 60 * 60) {
+            return toClock(v / 60);
+        }
+
+        // Milliseconds.
+        if (abs <= 24 * 60 * 60 * 1000) {
+            return toClock(v / 1000 / 60);
+        }
+
+        return null;
+    };
+
+    // Common explicit fields.
+    if (typeof t.hour === "number" && typeof t.minute === "number") {
+        return `${pad2(t.hour)}:${pad2(t.minute)}`;
+    }
+    if (typeof t.hours === "number" && typeof t.minutes === "number") {
+        return `${pad2(t.hours)}:${pad2(t.minutes)}`;
+    }
+
+    // Try common "minutes since start of day" variants.
+    const minuteOfDayCandidates = [
+        t.minuteOfDay,
+        t.minutesOfDay,
+        t.timeOfDayMinutes,
+        t.dayMinutes,
+        t.dayMinute
+    ].filter(v => typeof v === "number") as number[];
+
+    if (minuteOfDayCandidates.length > 0) {
+        const m0 = minuteOfDayCandidates[0];
+        return toClock(m0);
+    }
+
+    // Try common time-of-day fields with flexible units.
+    const timeOfDayCandidates: Array<number> = [
+        asNumber(t.timeOfDay),
+        asNumber(t.dayProgress),
+        asNumber(t.progress),
+        asNumber(t.t),
+        asNumber(t.elapsed),
+        asNumber(t.elapsedMs),
+        asNumber(t.timeMs),
+        asNumber(t.clock),
+        asNumber(t.clockMs)
+    ].filter((v): v is number => typeof v === "number");
+
+    for (const v of timeOfDayCandidates) {
+        const parsed = parseTimeOfDay(v);
+        if (parsed) return parsed;
+    }
+
+    // No known mapping found.
+    return "—";
 }
 
 function SaveControls({ seed, lastSavedAt, lastLoadedAt, onSave, onReset, onRerollSeed }: { seed: number; lastSavedAt: number | null; lastLoadedAt: number | null; onSave: () => void; onReset: () => void; onRerollSeed: () => void }) {
@@ -586,24 +713,25 @@ function SaveControls({ seed, lastSavedAt, lastLoadedAt, onSave, onReset, onRero
                 style={{
                     display: "grid",
                     gap: 6,
-                    padding: "10px 12px",
-                    background: "rgba(255, 238, 210, 0.3)",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,206,140,0.6)",
-                    boxShadow: "0 10px 24px rgba(40,20,8,0.18)",
-                    backdropFilter: "blur(8px)"
+                    padding: "12px 14px",
+                    background: `${CARD_BG}, ${GRADIENT_EDGE}`,
+                    borderRadius: 14,
+                    border: PANEL_BORDER,
+                    boxShadow: THEME.panelShadow,
+                    backdropFilter: "blur(14px)"
                 }}
             >
                 <div style={{ display: "flex", gap: 8 }}>
                     <button
                         onClick={onSave}
                         style={{
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(255,206,140,0.9)",
-                            background: "linear-gradient(135deg, rgba(255,210,150,0.92), rgba(240,170,90,0.9))",
+                            padding: "9px 14px",
+                            borderRadius: 12,
+                            border: PANEL_BORDER,
+                            background: ACCENT_BUTTON,
                             cursor: "pointer",
                             fontWeight: 800,
+                            color: THEME.text,
                             boxShadow: THEME.accentGlow
                         }}
                     >
@@ -612,10 +740,10 @@ function SaveControls({ seed, lastSavedAt, lastLoadedAt, onSave, onReset, onRero
                     <button
                         onClick={onReset}
                         style={{
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(255,206,140,0.6)",
-                            background: "rgba(40,20,8,0.14)",
+                            padding: "9px 14px",
+                            borderRadius: 12,
+                            border: PANEL_BORDER,
+                            background: SECONDARY_BUTTON,
                             color: THEME.text,
                             cursor: "pointer",
                             fontWeight: 800,
@@ -627,12 +755,13 @@ function SaveControls({ seed, lastSavedAt, lastLoadedAt, onSave, onReset, onRero
                     <button
                         onClick={onRerollSeed}
                         style={{
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(255,206,140,0.9)",
-                            background: "linear-gradient(135deg, rgba(200,230,255,0.9), rgba(120,170,240,0.85))",
+                            padding: "9px 14px",
+                            borderRadius: 12,
+                            border: PANEL_BORDER,
+                            background: "linear-gradient(135deg, #5ee7ff, #7cf3ff)",
                             cursor: "pointer",
                             fontWeight: 800,
+                            color: THEME.text,
                             boxShadow: THEME.panelShadow
                         }}
                     >
@@ -670,15 +799,15 @@ function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"];
         <div
             style={{
                 position: "absolute",
-                top: 14,
-                left: 14,
-                padding: "10px 12px",
+                top: 110,
+                left: 18,
+                padding: "12px 14px",
                 maxWidth: "320px",
-                background: "rgba(255, 238, 210, 0.32)",
-                border: "1px solid rgba(255, 206, 140, 0.6)",
-                borderRadius: 12,
-                boxShadow: "0 10px 28px rgba(40,20,8,0.18)",
-                backdropFilter: "blur(10px)",
+                background: `${GLASS_BG}, ${GRADIENT_EDGE}`,
+                border: PANEL_BORDER,
+                borderRadius: 14,
+                boxShadow: THEME.panelShadow,
+                backdropFilter: "blur(12px)",
                 pointerEvents: "auto",
                 display: "grid",
                 gap: 8
@@ -704,12 +833,12 @@ function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"];
                 <div
                     style={{
                         borderRadius: 10,
-                        border: "1px solid rgba(255,206,140,0.8)",
-                        background: "rgba(255, 255, 255, 0.78)",
-                        padding: 10,
+                        border: PANEL_BORDER,
+                        background: CARD_BG,
+                        padding: 12,
                         display: "grid",
                         gap: 6,
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.45)"
+                        boxShadow: THEME.panelShadow
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
@@ -725,12 +854,13 @@ function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"];
                         <button
                             onClick={() => activeStep.target && onSelectBuild(activeStep.target)}
                             style={{
-                                padding: "8px 12px",
-                                borderRadius: 10,
-                                border: "1px solid rgba(255,206,140,0.9)",
-                                background: "linear-gradient(135deg, rgba(255,210,150,0.9), rgba(240,170,90,0.85))",
+                                padding: "9px 14px",
+                                borderRadius: 12,
+                                border: PANEL_BORDER,
+                                background: ACCENT_BUTTON,
                                 cursor: "pointer",
                                 fontWeight: 800,
+                                color: THEME.text,
                                 boxShadow: THEME.accentGlow
                             }}
                         >
@@ -758,11 +888,11 @@ function TopRightResources({ st }: { st: GameState }) {
                 maxWidth: "min(70vw, 640px)",
                 pointerEvents: "auto",
                 padding: "6px 8px",
-                background: "rgba(30, 15, 0, 0.15)",
+                background: GLASS_BG,
                 borderRadius: 14,
-                border: "1px solid rgba(255,206,140,0.45)",
-                boxShadow: "0 10px 24px rgba(40,20,8,0.18)",
-                backdropFilter: "blur(10px)"
+                border: PANEL_BORDER,
+                boxShadow: THEME.panelShadow,
+                backdropFilter: "blur(12px)"
             }}
         >
             {RES_ORDER.map(res => (
@@ -775,10 +905,10 @@ function TopRightResources({ st }: { st: GameState }) {
                         gap: 8,
                         minWidth: 110,
                         padding: "6px 10px",
-                        background: "linear-gradient(135deg, rgba(255,233,200,0.55), rgba(240,196,120,0.5))",
+                        background: "linear-gradient(135deg, rgba(124,243,255,0.08), rgba(86,122,255,0.08))",
                         borderRadius: 10,
-                        border: "1px solid rgba(255,206,140,0.7)",
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.45), 0 6px 14px rgba(40,20,8,0.18)",
+                        border: PANEL_BORDER,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 18px rgba(0,0,0,0.28)",
                         backdropFilter: "blur(6px)"
                     }}
                 >
@@ -790,9 +920,9 @@ function TopRightResources({ st }: { st: GameState }) {
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: `radial-gradient(circle at 30% 30%, #fff7eb 0%, ${res.color}33 70%, transparent 100%)`,
-                            border: `1px solid ${res.color}55`,
-                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.38)",
+                            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06) 0%, ${res.color}33 70%, transparent 100%)`,
+                            border: PANEL_BORDER,
+                            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.16)",
                             fontSize: 15
                         }}
                     >
@@ -879,7 +1009,7 @@ function BuildingModal({
                 alignItems: "center",
                 justifyContent: "center",
                 pointerEvents: "auto",
-                background: "rgba(10,10,20,0.55)",
+                background: "linear-gradient(180deg, rgba(4,6,12,0.82) 0%, rgba(4,6,12,0.7) 100%)",
                 padding: 24,
                 zIndex: 20
             }}
@@ -887,11 +1017,10 @@ function BuildingModal({
             <div
                 style={{
                     width: "min(540px, 94vw)",
-                    borderRadius: 14,
-                    border: "2px solid #1f1b2d",
-                    boxShadow: "0 0 0 2px #f5e2c5, 0 18px 36px rgba(0,0,0,0.45)",
-                    background:
-                        "linear-gradient(180deg, rgba(255,247,235,0.96) 0%, rgba(250,231,206,0.95) 50%, rgba(246,214,180,0.95) 100%), repeating-linear-gradient(90deg, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 2px, transparent 2px, transparent 4px)",
+                    borderRadius: 16,
+                    border: PANEL_BORDER,
+                    boxShadow: THEME.panelShadow,
+                    background: `${CARD_BG}, ${GRADIENT_EDGE}`,
                     padding: 16,
                     display: "grid",
                     gap: 12,
@@ -920,12 +1049,13 @@ function BuildingModal({
                         <button
                             onClick={onClose}
                             style={{
-                                border: "2px solid #2b1a10",
-                                background: "linear-gradient(135deg, #ffe1b8, #ffb88a)",
-                                borderRadius: 10,
-                                padding: "8px 12px",
+                                border: PANEL_BORDER,
+                                background: ACCENT_BUTTON,
+                                borderRadius: 12,
+                                padding: "9px 14px",
                                 cursor: "pointer",
                                 fontWeight: 800,
+                                color: THEME.text,
                                 boxShadow: THEME.accentGlow
                             }}
                         >
@@ -936,7 +1066,7 @@ function BuildingModal({
 
                 <div style={{ display: "grid", gap: 10 }}>
                     {(hasActiveTask || collectable) && (
-                        <div style={{ border: "2px solid #1f1b2d", borderRadius: 10, background: "rgba(255,255,255,0.92)", padding: 12 }}>
+                        <div style={{ border: PANEL_BORDER, borderRadius: 12, background: GLASS_BG, padding: 12, boxShadow: THEME.panelShadow }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div style={{ fontWeight: 800 }}>Auftrag</div>
                                 <Badge label={statusLabel} tone={collectable ? "ok" : building.task.blocked ? "warn" : "accent"} />
@@ -1023,10 +1153,10 @@ function BuildingModal({
 
 function Badge({ label, tone = "muted" }: { label: string; tone?: "muted" | "ok" | "warn" | "accent" }) {
     const palette = {
-        muted: { bg: "#f4eadc", border: "#2b1a10", color: "#2b1a10" },
-        ok: { bg: "#caff99", border: "#2f4f1f", color: "#1f2f10" },
-        warn: { bg: "#ffe0d0", border: "#7a1f0d", color: "#3c0f08" },
-        accent: { bg: "#ffd9a3", border: "#2b1a10", color: "#2b1a10" }
+        muted: { bg: GLASS_BG, border: THEME.panelBorder, color: THEME.text },
+        ok: { bg: "rgba(110,231,183,0.18)", border: "rgba(110,231,183,0.6)", color: THEME.text },
+        warn: { bg: "rgba(255,99,132,0.2)", border: "rgba(255,99,132,0.6)", color: THEME.text },
+        accent: { bg: "rgba(124,243,255,0.2)", border: THEME.panelBorder, color: THEME.text }
     }[tone];
 
     return (
@@ -1076,12 +1206,14 @@ function VillagerRow({ v, actionLabel, onAction, tone }: { v: GameState["village
                         style={{
                             width: 28,
                             height: 28,
-                            borderRadius: 6,
-                            background: "linear-gradient(135deg, #ffe8c2, #ffcba2)",
-                            border: "1px solid rgba(0,0,0,0.2)",
+                            borderRadius: 10,
+                            background: ACCENT_BUTTON,
+                            border: PANEL_BORDER,
                             display: "grid",
                             placeItems: "center",
-                            fontWeight: 800
+                            fontWeight: 800,
+                            color: THEME.text,
+                            boxShadow: THEME.accentGlow
                         }}
                     >
                         {v.name.slice(0, 1)}
@@ -1090,7 +1222,7 @@ function VillagerRow({ v, actionLabel, onAction, tone }: { v: GameState["village
                         <div style={{ fontWeight: 800 }}>{v.name}</div>
                         <div style={{ display: "flex", gap: 6, alignItems: "center", opacity: 0.8 }}>
                             <span>#{v.id}</span>
-                            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.2)", background: "rgba(0,0,0,0.04)" }}>
+                            <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 6, border: CHIP_BORDER, background: MUTED_BG }}>
                                 {v.job}
                             </span>
                         </div>
@@ -1105,12 +1237,15 @@ function VillagerRow({ v, actionLabel, onAction, tone }: { v: GameState["village
                 onClick={onAction}
                 style={{
                     border: `2px solid ${palette.border}`,
-                    background: tone === "ok" ? "linear-gradient(135deg, #d4ff9a, #9ddc5f)" : "linear-gradient(135deg, #ffd9a3, #ffb38a)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
+                    background: tone === "ok" ? "linear-gradient(135deg, #8df5c4, #4ad1a1)" : ACCENT_BUTTON,
+                    borderRadius: 10,
+                    padding: "10px 12px",
                     cursor: "pointer",
                     fontWeight: 900,
-                    minWidth: 96
+                    minWidth: 110,
+                    height: 44,
+                    color: THEME.text,
+                    boxShadow: THEME.accentGlow
                 }}
             >
                 {actionLabel}
@@ -1177,11 +1312,11 @@ function BottomHud({
                         textAlign: "center",
                         fontSize: 12,
                         opacity: 0.9,
-                        padding: "8px 12px",
-                        borderRadius: 12,
-                        border: "1px solid rgba(255,206,140,0.5)",
-                        background: "rgba(255, 233, 200, 0.18)",
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)"
+                        padding: "10px 14px",
+                        borderRadius: 14,
+                        border: PANEL_BORDER,
+                        background: GLASS_BG,
+                        boxShadow: THEME.panelShadow
                     }}
                 >
                     {buildMode ? `Bauen: ${BUILD_META[buildMode]?.title ?? buildMode}` : "Kein Bau aktiv"}
@@ -1190,13 +1325,16 @@ function BottomHud({
                     <button
                         onClick={onCancelBuild}
                         style={{
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(255,206,140,0.7)",
-                            background: "linear-gradient(135deg, rgba(255,210,150,0.9), rgba(240,170,90,0.85))",
+                            padding: "10px 14px",
+                            borderRadius: 12,
+                            border: PANEL_BORDER,
+                            background: ACCENT_BUTTON,
                             cursor: "pointer",
                             fontWeight: 700,
-                            boxShadow: THEME.accentGlow
+                            color: THEME.text,
+                            boxShadow: THEME.accentGlow,
+                            height: 44,
+                            minWidth: 120
                         }}
                     >
                         Abbrechen
@@ -1223,15 +1361,15 @@ function SpeedButton({ label, active, onClick }: { label: string; active?: boole
         <button
             onClick={onClick}
             style={{
-                width: 44,
-                height: 44,
-                borderRadius: 12,
-                border: active ? "1px solid rgba(255,206,140,0.9)" : "1px solid rgba(255,206,140,0.35)",
-                background: active ? "linear-gradient(135deg, rgba(255,210,150,0.95), rgba(240,170,90,0.85))" : "rgba(255, 233, 200, 0.18)",
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                border: active ? PANEL_BORDER : CHIP_BORDER,
+                background: active ? ACCENT_BUTTON : GLASS_BG,
                 color: THEME.text,
                 fontWeight: 800,
                 cursor: "pointer",
-                boxShadow: active ? THEME.accentGlow : "0 6px 12px rgba(40,20,8,0.2)",
+                boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
                 backdropFilter: "blur(6px)"
             }}
         >
@@ -1243,8 +1381,8 @@ function SpeedButton({ label, active, onClick }: { label: string; active?: boole
 function Tag({ label, value, tone = "muted" }: { label: string; value: string; tone?: "muted" | "warn" }) {
     const palette =
         tone === "warn"
-            ? { bg: "rgba(255,149,128,0.22)", border: "rgba(255,149,128,0.6)" }
-            : { bg: "rgba(255, 233, 200, 0.18)", border: "rgba(255,206,140,0.45)" };
+            ? { bg: "rgba(255,99,132,0.16)", border: "rgba(255,99,132,0.55)" }
+            : { bg: "rgba(255, 255, 255, 0.04)", border: THEME.panelBorder };
     return (
         <span
             style={{
@@ -1258,7 +1396,7 @@ function Tag({ label, value, tone = "muted" }: { label: string; value: string; t
                 fontSize: 12,
                 fontWeight: 700,
                 color: THEME.text,
-                boxShadow: "0 6px 12px rgba(40,20,8,0.18)",
+                boxShadow: THEME.panelShadow,
                 backdropFilter: "blur(6px)"
             }}
         >
@@ -1274,11 +1412,11 @@ function HammerButton({ active, onClick }: { active: boolean; onClick: () => voi
             onClick={onClick}
             aria-label="Build menu"
             style={{
-                width: 52,
-                height: 52,
+                width: 56,
+                height: 56,
                 borderRadius: 14,
                 border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                background: active ? ACCENT_BUTTON : GLASS_STRONG,
                 cursor: "pointer",
                 boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
                 display: "inline-flex",
@@ -1301,11 +1439,11 @@ function VillagerButton({ active, onClick }: { active: boolean; onClick: () => v
             onClick={onClick}
             aria-label="Bewohner menu"
             style={{
-                width: 52,
-                height: 52,
+                width: 56,
+                height: 56,
                 borderRadius: 14,
                 border: active ? `2px solid ${THEME.accent}` : `1px solid ${THEME.chipBorder}`,
-                background: active ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                background: active ? ACCENT_BUTTON : GLASS_STRONG,
                 cursor: "pointer",
                 boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
                 display: "inline-flex",
@@ -1394,7 +1532,7 @@ function BuildMenu({
                     {sections.map(section => {
                         const unlocked = unlocks[section.id] ?? false;
                         return (
-                            <div key={section.id} style={{ border: `1px solid ${section.accent}33`, borderRadius: 14, padding: 12, background: "rgba(255,255,255,0.75)" }}>
+                            <div key={section.id} style={{ border: `1px solid ${section.accent}33`, borderRadius: 14, padding: 12, background: GLASS_BG, boxShadow: THEME.panelShadow }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                                     <div
                                         style={{
@@ -1426,11 +1564,15 @@ function BuildMenu({
                                                 style={{
                                                     border: `1px solid ${locked ? THEME.chipBorder : section.accent}55`,
                                                     borderRadius: 12,
-                                                    padding: 10,
-                                                    background: locked ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.9)",
-                                                    opacity: locked ? 0.6 : 1,
+                                                    padding: 12,
+                                                    background: locked ? MUTED_BG : GLASS_STRONG,
+                                                    opacity: locked ? 0.65 : 1,
                                                     position: "relative",
-                                                    boxShadow: active ? THEME.accentGlow : THEME.panelShadow
+                                                    boxShadow: active ? THEME.accentGlow : THEME.panelShadow,
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 6,
+                                                    minHeight: CARD_MIN_HEIGHT
                                                 }}
                                             >
                                                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -1439,9 +1581,9 @@ function BuildMenu({
                                                 </div>
                                                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 4 }}>{item.effect}</div>
                                                 <div style={{ fontSize: 11, opacity: 0.65 }}>Upgrade: {item.upgrade}</div>
-                                                {costText && <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>Kosten: {costText}</div>}
+                                                {costText && <div style={{ fontSize: 11, opacity: 0.8 }}>Kosten: {costText}</div>}
                                                 {lockedByTutorial && (
-                                                    <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 4 }}>
+                                                    <div style={{ fontSize: 11, color: "#b91c1c" }}>
                                                         Gesperrt bis Schritt erledigt: {lockLabel ?? tutorialStep?.description ?? "Tutorial"}
                                                     </div>
                                                 )}
@@ -1449,14 +1591,17 @@ function BuildMenu({
                                                     disabled={!selectable}
                                                     onClick={() => item.type && onSelect(item.type)}
                                                     style={{
-                                                        marginTop: 8,
+                                                        marginTop: "auto",
                                                         width: "100%",
-                                                        padding: "8px 10px",
+                                                        height: 44,
+                                                        padding: "10px 12px",
                                                         borderRadius: 10,
-                                                        border: selectable ? `1px solid ${section.accent}` : `1px solid ${THEME.chipBorder}`,
-                                                        background: selectable ? "linear-gradient(135deg, #ffd9a3, #ffb38a)" : THEME.chipBg,
+                                                        border: selectable ? `1px solid ${section.accent}` : CHIP_BORDER,
+                                                        background: selectable ? ACCENT_BUTTON : SECONDARY_BUTTON,
                                                         cursor: selectable ? "pointer" : "not-allowed",
-                                                        fontWeight: 700
+                                                        fontWeight: 700,
+                                                        color: THEME.text,
+                                                        boxShadow: selectable ? THEME.accentGlow : THEME.panelShadow
                                                     }}
                                                 >
                                                     {lockedByTutorial ? "Tutorial gesperrt" : locked ? "Gesperrt" : active ? "Aktiv" : "Bauen"}
@@ -1615,8 +1760,8 @@ function VillagerMenu({
                             style={{
                                 padding: 16,
                                 borderRadius: 16,
-                                border: `1px solid ${THEME.panelBorder}`,
-                                background: "linear-gradient(150deg, #ffe5cf, #ffd3b7)",
+                                border: PANEL_BORDER,
+                                background: `${CARD_BG}, ${GRADIENT_EDGE}`,
                                 boxShadow: THEME.panelShadow,
                                 display: "grid",
                                 gap: 10,
@@ -1637,8 +1782,8 @@ function VillagerMenu({
                             style={{
                                 padding: 14,
                                 borderRadius: 14,
-                                border: `1px solid ${THEME.panelBorder}`,
-                                background: "rgba(255,255,255,0.94)",
+                                border: PANEL_BORDER,
+                                background: GLASS_BG,
                                 display: "grid",
                                 gap: 10,
                                 boxShadow: THEME.panelShadow
@@ -1661,8 +1806,8 @@ function VillagerMenu({
                             style={{
                                 padding: 12,
                                 borderRadius: 12,
-                                border: `1px solid ${THEME.panelBorder}`,
-                                background: "rgba(0,0,0,0.03)",
+                                border: PANEL_BORDER,
+                                background: GLASS_STRONG,
                                 display: "grid",
                                 gap: 6,
                                 boxShadow: THEME.panelShadow
@@ -1688,10 +1833,10 @@ function VillagerMenu({
                                 <div
                                     key={v.id}
                                     style={{
-                                        border: `1px solid ${THEME.panelBorder}`,
+                                        border: PANEL_BORDER,
                                         borderRadius: 12,
                                         padding: 12,
-                                        background: "rgba(255,255,255,0.92)",
+                                        background: GLASS_BG,
                                         boxShadow: THEME.panelShadow,
                                         display: "grid",
                                         gap: 10

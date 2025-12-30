@@ -205,11 +205,61 @@ export function updateVillagerLocations(st: GameState, dtMs: number): GameState 
             }
         }
 
+        // If a gatherer/woodcutter reaches the harvest radius, mark their assigned task as started.
+        if (st.flags.working && (v.job === "gatherer" || v.job === "woodcutter")) {
+            const nearest = nearestHarvestable(stateWithBuildings, nextVillager.pos, v.job === "woodcutter" ? ["tree"] : ["berry_bush", "mushroom"]);
+            if (nearest && v.assignedBuildingId) {
+                const dist = Math.hypot(nearest.pos.x - nextVillager.pos.x, nearest.pos.y - nextVillager.pos.y);
+                if (dist <= HARVEST_RADIUS + 0.05) {
+                    const assigned = buildings[v.assignedBuildingId];
+                    if (assigned && !assigned.task.started && assigned.task.kind !== "none") {
+                        buildings = {
+                            ...buildings,
+                            [v.assignedBuildingId]: {
+                                ...assigned,
+                                task: { ...assigned.task, started: true }
+                            }
+                        };
+                        changed = true;
+                    }
+                }
+            }
+        }
+
         // When a gatherer/woodcutter is at a resource, let them idle-wander slightly around it every few seconds.
         if (!target && st.flags.working && (v.job === "gatherer" || v.job === "woodcutter")) {
             const nearest = nearestHarvestable(stateWithBuildings, nextVillager.pos, v.job === "woodcutter" ? ["tree"] : ["berry_bush", "mushroom"]);
             if (nearest) {
                 const dist = Math.hypot(nearest.pos.x - nextVillager.pos.x, nearest.pos.y - nextVillager.pos.y);
+
+                // Handle berry bush depletion after repeated visits.
+                const targetId = nearest.buildingId;
+                const target = buildings[targetId];
+                if (target && target.type === "berry_bush") {
+                    // Entering harvest radius: count one pick if not already counted for this visit.
+                    if (dist <= HARVEST_RADIUS + 0.05) {
+                        if (!target.task.started) {
+                            const uses = (target.task.progress || 0) + 1;
+                            const exhausted = uses >= 2;
+                            const nextTask = { ...target.task, progress: exhausted ? 0 : uses, started: !exhausted };
+                            buildings = exhausted
+                                ? (() => {
+                                      const { [targetId]: _, ...rest } = buildings;
+                                      return rest;
+                                  })()
+                                : { ...buildings, [targetId]: { ...target, task: nextTask } };
+                            changed = true;
+                        }
+                    } else if (target.task.started) {
+                        // Left the bush: allow counting again on next entry.
+                        buildings = {
+                            ...buildings,
+                            [targetId]: { ...target, task: { ...target.task, started: false } }
+                        };
+                        changed = true;
+                    }
+                }
+
                 if (dist <= HARVEST_RADIUS + 0.05) {
                     // Mark assigned building task as started when worker reaches resource.
                     if (v.assignedBuildingId && buildings[v.assignedBuildingId]) {
