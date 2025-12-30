@@ -16,6 +16,7 @@ export function createInitialVillagers(): Record<string, Villager> {
         name,
         pos: { x, y },
         facing: "right",
+        lastFacingMs: 0,
         job,
         assignedBuildingId: null,
         homeBuildingId: null,

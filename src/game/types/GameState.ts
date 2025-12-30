@@ -109,6 +109,7 @@ export type Villager = {
     name: string;
     pos: Vec2;
     facing: VillagerFacing;
+    lastFacingMs: number;
     job: VillagerJobId;
     assignedBuildingId: Id | null;
     homeBuildingId: Id | null;

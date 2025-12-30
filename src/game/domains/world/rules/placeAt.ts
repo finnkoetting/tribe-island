@@ -24,7 +24,7 @@ export function defaultBuilding(type: BuildingTypeId, id: string, pos: Vec2): Bu
             : null;
 
     const taskKind = type === "gather_hut" || type === "sawmill" ? "produce" : "none";
-    const taskDuration = type === "gather_hut" ? 30000 : type === "sawmill" ? 45000 : 0;
+    const taskDuration = type === "gather_hut" ? 60000 : type === "sawmill" ? 45000 : 0;
 
     return {
         id,

@@ -20,6 +20,10 @@ export function tick(st: GameState, dtMs: number): GameState {
 
     next = updateVillagerLocations(next, effectiveDt);
 
+    if (effectiveDt > 0) {
+        next = applyNeedsDrift(next, effectiveDt);
+    }
+
     if (effectiveDt > 0 && next.flags.working) {
         next = progressBuildingTasks(next, effectiveDt);
     }
@@ -34,4 +38,42 @@ export function tick(st: GameState, dtMs: number): GameState {
     next = evaluateTutorialQuests(next);
 
     return next;
+}
+
+function applyNeedsDrift(st: GameState, dtMs: number): GameState {
+    const secs = dtMs / 1000;
+    if (secs <= 0) return st;
+
+    const sleeping = st.flags.sleeping;
+    const workingPhase = st.flags.working;
+
+    const nextVillagers: typeof st.villagers = {};
+
+    for (const v of Object.values(st.villagers)) {
+        if (v.state !== "alive") {
+            nextVillagers[v.id] = v;
+            continue;
+        }
+
+        const working = workingPhase && Boolean(v.assignedBuildingId);
+
+        const hungerRate = sleeping ? 0.0002 : working ? 0.00055 : 0.00035;
+        const energyLoss = sleeping ? -0.0015 : working ? 0.0008 : 0.0005;
+
+        const hunger = clamp01(v.needs.hunger + secs * hungerRate);
+        const energy = clamp01(v.needs.energy - secs * energyLoss);
+
+        nextVillagers[v.id] = {
+            ...v,
+            needs: { ...v.needs, hunger, energy }
+        };
+    }
+
+    return { ...st, villagers: nextVillagers };
+}
+
+function clamp01(n: number): number {
+    if (n < 0) return 0;
+    if (n > 1) return 1;
+    return n;
 }

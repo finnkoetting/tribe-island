@@ -5,6 +5,9 @@ const WALK_SPEED_TILES_PER_SEC = 1.6;
 const ARRIVE_EPS = 0.02;
 const MIN_FACING_STEP = 1e-4;
 const HARVEST_RADIUS = 0.55;
+const FACING_COOLDOWN_MS = 3000;
+const FACING_DIST_EPS = 0.35; // avoid jitter near target
+const FACING_SCREEN_EPS = 0.1; // minimum projected delta to consider flipping
 
 const HARVEST_YIELD: Partial<Record<Building["type"], { resource: keyof GameState["inventory"]; amount: number }>> = {
     tree: { resource: "wood", amount: 3 },
@@ -70,9 +73,10 @@ function pickTargetPosition(
     villagerPos: Vec2,
     workPos: Vec2 | null,
     homePos: Vec2 | null,
-    job: Villager["job"]
+    job: Villager["job"],
+    assignedBuildingId: string | null
 ): Vec2 | null {
-    const resourceTarget = resolveJobTarget(st, villagerPos, job, st.flags.working);
+    const resourceTarget = resolveJobTarget(st, villagerPos, job, st.flags.working, assignedBuildingId);
     if (resourceTarget) return resourceTarget;
 
     const campfirePos = nearestCampfire(campfires, villagerPos);
@@ -88,12 +92,39 @@ function pickTargetPosition(
     return campfirePos;
 }
 
-function resolveJobTarget(st: GameState, villagerPos: Vec2, job: Villager["job"], working: boolean): Vec2 | null {
+function resolveJobTarget(
+    st: GameState,
+    villagerPos: Vec2,
+    job: Villager["job"],
+    working: boolean,
+    assignedBuildingId: string | null
+): Vec2 | null {
     if (!working) return null;
     if (job !== "gatherer" && job !== "woodcutter") return null;
 
+    const assigned = assignedBuildingId ? st.buildings[assignedBuildingId] : null;
+    const allowedBuildingType = job === "gatherer" ? "gather_hut" : "sawmill";
+
+    // Must be assigned to the correct gathering building and have an active task.
+    if (!assigned || assigned.type !== allowedBuildingType) return null;
+    const taskActive = assigned.task.kind !== "none" && !assigned.task.blocked && assigned.task.duration > 0;
+    if (!taskActive) return null;
+
+    const assignedCollectable = assigned.task.collectable;
+
+    // When the building has finished its task, head back to the hut and wait.
+    if (assignedCollectable && assigned) {
+        return buildingAnchorPos(assigned);
+    }
+
     const nearest = nearestHarvestable(st, villagerPos, job === "woodcutter" ? ["tree"] : ["berry_bush", "mushroom"]);
-    return nearest?.pos ?? null;
+    if (!nearest) return null;
+
+    // If already at the resource, stay in place (simulate working at the node).
+    const dist = Math.hypot(nearest.pos.x - villagerPos.x, nearest.pos.y - villagerPos.y);
+    if (dist <= HARVEST_RADIUS) return villagerPos;
+
+    return nearest.pos;
 }
 
 function nearestHarvestable(st: GameState, villagerPos: Vec2, allowed: Array<Building["type"]>) {
@@ -134,9 +165,10 @@ export function updateVillagerLocations(st: GameState, dtMs: number): GameState 
 
         const workPos = resolveWorkPos(stateWithBuildings, v.assignedBuildingId);
         const homePos = resolveHomePos(stateWithBuildings, v.homeBuildingId);
-        const target = pickTargetPosition(stateWithBuildings, campfires, v.pos, workPos, homePos, v.job);
+        const target = pickTargetPosition(stateWithBuildings, campfires, v.pos, workPos, homePos, v.job, v.assignedBuildingId);
 
         let nextVillager: Villager = v;
+        let idleWanderApplied = false;
 
         if (target) {
             const dx = target.x - v.pos.x;
@@ -149,9 +181,41 @@ export function updateVillagerLocations(st: GameState, dtMs: number): GameState 
                 const nx = v.pos.x + (dx / dist) * step;
                 const ny = v.pos.y + (dy / dist) * step;
 
-                const facing = resolveFacing(dx, dy, v.facing);
-                nextVillager = { ...v, pos: { x: nx, y: ny }, facing };
+                let facing = v.facing;
+                const shouldConsiderFacing = dist > FACING_DIST_EPS;
+                if (shouldConsiderFacing) {
+                    const desiredFacing = resolveFacing(dx, dy, v.facing);
+                    const screenDx = (dx - dy);
+                    const bigEnoughTurn = Math.abs(screenDx) >= FACING_SCREEN_EPS;
+                    const canFlip = desiredFacing !== v.facing && st.nowMs - v.lastFacingMs >= FACING_COOLDOWN_MS && bigEnoughTurn;
+                    if (canFlip) facing = desiredFacing;
+                }
+
+                nextVillager = {
+                    ...v,
+                    pos: { x: nx, y: ny },
+                    facing,
+                    lastFacingMs: facing !== v.facing ? st.nowMs : v.lastFacingMs
+                };
                 if (step > 0) changed = true;
+            }
+            // Close enough: stop to avoid back-forth jitter.
+            else {
+                // no-op
+            }
+        }
+
+        // When a gatherer/woodcutter is at a resource, let them idle-wander slightly around it every few seconds.
+        if (!target && st.flags.working && (v.job === "gatherer" || v.job === "woodcutter")) {
+            const nearest = nearestHarvestable(stateWithBuildings, nextVillager.pos, v.job === "woodcutter" ? ["tree"] : ["berry_bush", "mushroom"]);
+            if (nearest) {
+                const dist = Math.hypot(nearest.pos.x - nextVillager.pos.x, nearest.pos.y - nextVillager.pos.y);
+                if (dist <= HARVEST_RADIUS + 0.05) {
+                    const wander = idleWander(nearest.pos, v.id, st.nowMs);
+                    nextVillager = { ...nextVillager, pos: wander };
+                    idleWanderApplied = true;
+                    changed = true;
+                }
             }
         }
 
@@ -189,6 +253,10 @@ function harvestNearby(
     inventory: GameState["inventory"];
     event: GameState["events"][number] | null;
 } {
+    if (job === "gatherer" || job === "woodcutter") {
+        // Skip instant harvest; building tasks handle output timing for gatherers/woodcutters.
+        return { harvested: false, buildings, inventory, event: null };
+    }
     const allowed = job === "woodcutter" ? ["tree"] : job === "gatherer" ? ["berry_bush", "mushroom"] : [];
     if (!allowed.length) return { harvested: false, buildings, inventory, event: null };
 
@@ -227,4 +295,24 @@ function harvestNearby(
     };
 
     return { harvested: true, buildings: nextBuildings, inventory: nextInventory, event };
+}
+
+function idleWander(anchor: Vec2, villagerId: string, nowMs: number): Vec2 {
+    const period = 5000 + (hashId(villagerId) % 5000); // 5-10s
+    const t = (nowMs % period) / period;
+    const angle = t * Math.PI * 2;
+    const radius = 0.12;
+    return {
+        x: anchor.x + Math.cos(angle) * radius,
+        y: anchor.y + Math.sin(angle) * radius * 0.75
+    };
+}
+
+function hashId(id: string): number {
+    let h = 2166136261;
+    for (let i = 0; i < id.length; i++) {
+        h ^= id.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
 }
