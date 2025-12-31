@@ -645,8 +645,21 @@ export default function GameClient() {
     const handleSelectBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
-        setBuildMode(prev => (prev === type ? null : type));
+        setBuildMode(type);
+        setBuildMenuOpen(false);
     };
+
+    // Close build menu and cancel build on Escape
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.code === "Escape") {
+                setBuildMenuOpen(false);
+                setBuildMode(null);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
 
     const handleAssignHome = (villagerId: string, buildingId: string | null) => {
         setSt(prev => {
@@ -885,11 +898,23 @@ export default function GameClient() {
                     onRemove={vid => handleAssignWork(vid, null)}
                 />
                 <div style={{ position: "fixed", left: "50%", bottom: "5%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 40, width: "80vw" }}>
-                    {buildMenuOpen ? (
-                        <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
-                            <BuildBar sections={BUILD_SECTIONS} onSelect={handleSelectBuild} />
-                        </div>
-                    ) : null}
+                    <div
+                        aria-hidden={!buildMenuOpen}
+                        style={{
+                            pointerEvents: buildMenuOpen ? "auto" : "none",
+                            display: "flex",
+                            justifyContent: "center",
+                            transition: "opacity .18s ease",
+                            opacity: buildMenuOpen ? 1 : 0
+                        }}
+                    >
+                        <BuildBar
+                            sections={BUILD_SECTIONS}
+                            onSelect={handleSelectBuild}
+                            isSelectable={(t) => Boolean(t) && BUILDABLE_TYPE_SET.has(t as BuildingTypeId) && !isTutorialBuildLocked(t as BuildingTypeId, st.quests)}
+                            open={buildMenuOpen}
+                        />
+                    </div>
                 </div>
 
                 <BottomHud
@@ -902,6 +927,10 @@ export default function GameClient() {
                         if (!next) setBuildMode(null);
                         return next;
                     })}
+                    onCloseBuildMenu={() => {
+                        setBuildMenuOpen(false);
+                        setBuildMode(null);
+                    }}
                     /* villager menu removed */
                     onCancelBuild={() => setBuildMode(null)}
                     villagerCount={aliveVillagers.length}
@@ -1609,6 +1638,8 @@ function BottomHud({
     setSt,
     buildMode,
     onToggleBuildMenu,
+    buildMenuOpen,
+    onCloseBuildMenu,
     villagerMenuOpen,
     onToggleVillagerMenu,
     onCancelBuild,
@@ -1620,6 +1651,8 @@ function BottomHud({
     setSt: React.Dispatch<React.SetStateAction<GameState>>;
     buildMode: BuildingTypeId | null;
     onToggleBuildMenu: () => void;
+    buildMenuOpen?: boolean;
+    onCloseBuildMenu?: () => void;
     villagerMenuOpen?: boolean;
     onToggleVillagerMenu?: () => void;
     onCancelBuild: () => void;
@@ -1643,10 +1676,30 @@ function BottomHud({
                 background: THEME.overlayGradient
             }}
         >
-            <div style={{ width: "100%", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
+                <div style={{ width: "100%", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
                 <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "15px" }}>
                     <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
-                    <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                    <div style={{ position: "relative", display: "inline-block" }}>
+                        <div style={{ position: "absolute", top: -22, left: "50%", transform: "translateX(-50%)" }}>
+                            <button
+                                onClick={() => onCloseBuildMenu?.()}
+                                aria-label="Abbrechen"
+                                style={{
+                                    width: 36,
+                                    height: 28,
+                                    borderRadius: 8,
+                                    border: `1px solid ${THEME.chipBorder}`,
+                                    background: THEME.chipBg,
+                                    cursor: "pointer",
+                                    boxShadow: THEME.panelShadow,
+                                    fontWeight: 800
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                    </div>
                     <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
                 </div>
             </div>

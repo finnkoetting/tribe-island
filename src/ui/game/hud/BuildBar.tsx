@@ -19,7 +19,7 @@ type UiBuildSection = {
     items: UiBuildItem[];
 };
 
-const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => void }> = ({ sections, onSelect }) => {
+const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => void; isSelectable?: (type?: string) => boolean; open?: boolean }> = ({ sections, onSelect, isSelectable, open = true }) => {
     const [active, setActive] = useState(0);
     
 
@@ -70,7 +70,7 @@ const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => v
     
 
     return (
-        <div className={styles.wrapper} style={{ background: THEME.cardBg, border: `1px solid ${THEME.panelBorder}` }}>
+        <div className={`${styles.wrapper} ${open ? styles.open : styles.closed}`} style={{ background: THEME.cardBg, border: `1px solid ${THEME.panelBorder}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div className={styles.tabs}>
                     {sections.map((s, i) => (
@@ -88,7 +88,7 @@ const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => v
             </div>
 
             <div className={styles.items}>
-                {sections[active]?.items.map((it, idx) => {
+                    {sections[active]?.items.map((it, idx) => {
                     const src = filenameFor(it);
                     const accent = sections[active]?.accent ?? THEME.accentButton;
                     const cardStyle: React.CSSProperties = {
@@ -97,15 +97,18 @@ const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => v
                     // expose accent color to CSS via variable for pseudo-element glow
                     (cardStyle as any)["--accent"] = accent;
 
+                    const selectable = isSelectable ? isSelectable(it.type) : Boolean(it.type);
+
                     return (
                         <div
                             key={(it.id ?? it.type ?? idx)}
-                            className={`${styles.itemCard} ${styles.clickable}`}
+                            className={`${styles.itemCard} ${selectable ? styles.clickable : styles.disabled}`}
                             onMouseEnter={() => setHovered(idx)}
                             onMouseLeave={() => setHovered(null)}
                             onClick={() => {
-                                if (it.type) onSelect?.(it.type);
+                                if (selectable && it.type) onSelect?.(it.type);
                             }}
+                            title={!selectable ? "Nicht verfügbar" : undefined}
                             style={cardStyle}
                         >
                             <div className={styles.thumbWrap}>
