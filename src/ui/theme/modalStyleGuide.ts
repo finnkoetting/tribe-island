@@ -20,10 +20,13 @@ export const MODAL_STYLE = {
     fontWeight: THEME.button.fontWeight,
     fontSize: THEME.button.fontSize,
     boxShadow: THEME.button.boxShadow,
+    textShadow: "0 2px 0 rgba(0,0,0,0.18)",
+    transition: `transform ${THEME.transitions.fast}, box-shadow ${THEME.transitions.fast}, background ${THEME.transitions.fast}`,
     padding: THEME.button.padding,
     hover: {
       background: THEME.button.hoverBackground,
       color: "#3e3520",
+      boxShadow: "0 16px 36px rgba(0,0,0,0.32)",
     }
   },
   card: {

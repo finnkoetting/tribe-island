@@ -73,14 +73,14 @@ const KnowledgeIcon = () => (
 );
 
 const GoldIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <circle cx="10" cy="10" r="6" fill="#fbbf24" stroke="#c27803" strokeWidth="1.2" />
         <path d="M8 10.5c1.5.8 2.8.8 4 0M8 8.5c1.5-.8 2.8-.8 4 0" stroke="#92400e" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
 );
 
 const EmeraldIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <svg width="28" height="28" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <polygon points="10,4 15,8 12.5,15 7.5,15 5,8" fill="#10b981" stroke="#065f46" strokeWidth="0.9" />
         <path d="M10 6.5 L13 8.5" stroke="#064e3b" strokeWidth="0.6" strokeLinecap="round" />
     </svg>

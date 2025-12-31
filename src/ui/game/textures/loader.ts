@@ -12,7 +12,6 @@ const manifest: Record<string, LoaderFn> = {
     "objects/stone/1": () => import("./objects/stone/1.png"),
     "objects/stone/2": () => import("./objects/stone/2.png"),
     "objects/stone/3": () => import("./objects/stone/3.png"),
-    "objects/villager": () => import("./objects/villager.png"),
     "objects/villager/female/1": () => import("./objects/villager/female/1.png"),
     "objects/villager/male/1": () => import("./objects/villager/male/1.png"),
     "objects/cow": () => import("./objects/animal/cow.png"),

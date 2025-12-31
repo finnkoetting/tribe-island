@@ -6,7 +6,35 @@ import { canAffordCost, formatCost } from "../../../../src/game/domains/building
 import type { GameState, ResourceId, BuildingTypeId } from "../../../../src/game/types/GameState";
 import { MODAL_STYLE } from "../../../../src/ui/theme/modalStyleGuide";
 import { BUILD_META } from "../../../../src/game/content/buildConfig";
-import { GLASS_BG, GLASS_STRONG, CARD_BG, PANEL_BORDER, THEME } from "../theme/themeTokens";
+import { GLASS_STRONG, PANEL_BORDER, THEME, WOOD_TEXTURE, EDGE_SHADOW } from "../theme/themeTokens";
+
+const TASK_BUTTON_BASE = {
+    ...MODAL_STYLE.button,
+    background: "linear-gradient(180deg, #ffe6b0 0%, #ffc45c 55%, #ef9a3d 100%)",
+    color: "#4a2c11",
+    border: "2px solid rgba(255, 207, 132, 0.9)",
+    boxShadow: `${EDGE_SHADOW}, inset 0 2px 0 rgba(255,255,255,0.45)`,
+    padding: "14px 16px",
+    fontSize: 15,
+    minWidth: 120,
+    textAlign: "left" as const,
+    transition: "transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 160ms ease"
+};
+
+const TASK_BUTTON_SELECTED = {
+    background: "linear-gradient(180deg, #fff2c7 0%, #ffd97a 50%, #f3ad4f 100%)",
+    border: "2px solid rgba(255, 224, 160, 0.95)",
+    boxShadow: `${EDGE_SHADOW}, 0 0 0 2px rgba(255, 207, 132, 0.65)`,
+    color: "#3d2510"
+};
+
+const SECTION_PANEL = {
+    background: `${THEME.panelBg}, ${WOOD_TEXTURE}`,
+    border: "2px solid rgba(255, 207, 132, 0.78)",
+    borderRadius: 16,
+        boxShadow: `${THEME.panelShadow}, inset 0 2px 0 rgba(255,255,255,0.18)`,
+    padding: 14
+};
 
 export function BuildingModal({
     open,
@@ -72,6 +100,7 @@ export function BuildingModal({
     const canUpgrade = Boolean(nextSpec);
     const upgradeCost = nextSpec ? formatCost(nextSpec.cost ?? {}) : "Keine weiteren Upgrades";
     const canPay = Boolean(nextSpec) ? canAffordCost(st.inventory, nextSpec!.cost ?? {}) : false;
+    const activeTaskLabel = tasks.find(t => t.id === activeTask)?.label;
 
     return (
         <ModalContainer
@@ -84,10 +113,13 @@ export function BuildingModal({
                     title="Bewohner zuweisen"
                     style={{
                         fontSize: 20,
-                        background: "none",
-                        border: "none",
+                        background: "linear-gradient(180deg, #ffeaa7 0%, #ffc857 45%, #f4a63a 100%)",
+                        border: "2px solid rgba(255, 207, 132, 0.88)",
+                        borderRadius: 12,
                         cursor: "pointer",
-                        padding: "6px 8px"
+                        padding: "8px 10px",
+                        boxShadow: `${EDGE_SHADOW}, inset 0 2px 0 rgba(255,255,255,0.35)`,
+                        color: "#4a2c11"
                     }}
                     onClick={onOpenAssignVillager}
                     onKeyDown={(e) => {
@@ -101,56 +133,72 @@ export function BuildingModal({
                 </button>
             }
         >
-            <div style={{ display: "grid", gap: 12, margin: "0 0 15px 0", flexDirection: "row", justifyContent: "center", gridTemplateColumns: "repeat(2, minmax(120px, 1fr))", gridAutoRows: "min-content" }}>
-                {tasks.map(task => (
-                    <button
-                        key={task.id}
-                        onClick={() => setSelectedTask(task.id)}
-                        disabled={!!activeTask}
-                        style={{
-                            ...MODAL_STYLE.button,
-                            background: selectedTask === task.id ? MODAL_STYLE.button.background : "#fffbe6",
-                            color: selectedTask === task.id ? MODAL_STYLE.button.color : "#7a6a3a",
-                            border: selectedTask === task.id ? MODAL_STYLE.button.border : "2px solid #e2c17c55",
-                            fontSize: 15,
-                            minWidth: 120,
-                            boxShadow: selectedTask === task.id ? MODAL_STYLE.button.boxShadow : "none",
-                            opacity: activeTask ? 0.5 : 1,
-                            cursor: activeTask ? "not-allowed" : "pointer"
-                        }}
-                    >
-                        <div style={{ fontWeight: 900 }}>{task.label}</div>
-                        <div style={{ fontSize: 12, opacity: 0.8 }}>{task.desc}</div>
-                    </button>
-                ))}
+            <div style={{ ...SECTION_PANEL, margin: "0 0 12px 0", display: "grid", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 900, fontSize: 15, letterSpacing: 0.2 }}>Aufträge</span>
+                        {activeTask && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 10, background: GLASS_STRONG, border: PANEL_BORDER, fontWeight: 800, color: "#40240f", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28)" }}>
+                                ✨ Läuft: {activeTaskLabel ?? activeTask}
+                            </span>
+                        )}
+                    </div>
+                    <span style={{ fontSize: 12, opacity: 0.78 }}>Glückliche Aufgaben bringen Boni</span>
+                </div>
+
+                <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(2, minmax(120px, 1fr))", gridAutoRows: "min-content" }}>
+                    {tasks.map(task => (
+                        <button
+                            key={task.id}
+                            onClick={() => setSelectedTask(task.id)}
+                            disabled={!!activeTask}
+                            style={{
+                                ...TASK_BUTTON_BASE,
+                                ...(selectedTask === task.id ? TASK_BUTTON_SELECTED : {}),
+                                opacity: activeTask ? 0.5 : 1,
+                                cursor: activeTask ? "not-allowed" : "pointer",
+                                transform: selectedTask === task.id ? "translateY(-3px)" : undefined
+                            }}
+                        >
+                            <div style={{ fontWeight: 900 }}>{task.label}</div>
+                            <div style={{ fontSize: 12, opacity: 0.85 }}>{task.desc}</div>
+                        </button>
+                    ))}
+                </div>
+
+                {!activeTask && selectedTask && (
+                    <div style={{ textAlign: "center" }}>
+                        <button
+                            style={{ ...MODAL_STYLE.button, fontSize: 15, minWidth: 190, boxShadow: `${THEME.shadows.button}, inset 0 2px 0 rgba(255,255,255,0.35)` }}
+                            onClick={handleStartTask}
+                        >
+                            Auftrag starten
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {!activeTask && selectedTask && (
-                <div style={{ margin: "0 0 18px 0", textAlign: "center" }}>
-                    <button
-                        style={{ ...MODAL_STYLE.button, fontSize: 15, minWidth: 160 }}
-                        onClick={handleStartTask}
-                    >
-                        Auftrag starten
-                    </button>
+            <div style={{ ...SECTION_PANEL, display: "grid", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 6, background: THEME.accent, boxShadow: THEME.accentGlow }} />
+                        <span style={{ fontWeight: 900, fontSize: 15 }}>Bewohner</span>
+                    </div>
+                    <span style={{ fontSize: 12, opacity: 0.8 }}>{assigned.length}/{villagers.length} aktiv</span>
                 </div>
-            )}
-
-            <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>Bewohner</div>
-                <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ display: "grid", gap: 8 }}>
                     {assigned.map(v => (
                         <VillagerBadge key={v.id} label={`${v.name} (${v.job})`} tone="ok" />
                     ))}
                     {available.length === 0 && assigned.length === 0 && (
-                        <span style={{ fontSize: 13, opacity: 0.7 }}>Noch keine Bewohner zugewiesen.</span>
+                        <span style={{ fontSize: 13, opacity: 0.75, color: "#4a2c11" }}>Noch keine Bewohner zugewiesen.</span>
                     )}
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end" }}>
                     <button
                         type="button"
                         onClick={onOpenAssignVillager}
-                        style={{ ...MODAL_STYLE.button, padding: "10px 14px", fontWeight: 800 }}
+                        style={{ ...MODAL_STYLE.button, padding: "11px 16px", fontWeight: 900, minWidth: 170, boxShadow: `${THEME.shadows.button}, inset 0 2px 0 rgba(255,255,255,0.35)` }}
                     >
                         Bewohner zuweisen
                     </button>
@@ -158,9 +206,11 @@ export function BuildingModal({
             </div>
 
             {canUpgrade && (
-                <div style={{ marginTop: 18, textAlign: "center" }}>
+                <div style={{ ...SECTION_PANEL, marginTop: 10, display: "grid", gap: 10, textAlign: "center" }}>
+                    <div style={{ fontWeight: 900 }}>Upgrade auf Level {(safeBuilding.level || 1) + 1}</div>
+                    <div style={{ fontSize: 12, opacity: 0.82 }}>Kosten: {upgradeCost}</div>
                     <button
-                        style={{ ...MODAL_STYLE.button, fontSize: 16, minWidth: 180, opacity: canPay ? 1 : 0.9, cursor: "pointer" }}
+                        style={{ ...MODAL_STYLE.button, fontSize: 16, minWidth: 200, opacity: canPay ? 1 : 0.85, cursor: "pointer", boxShadow: `${THEME.shadows.button}, inset 0 2px 0 rgba(255,255,255,0.35)` }}
                         onClick={() => {
                             if (!safeBuilding) return;
                             if (canPay) return onUpgrade(safeBuilding.id);
@@ -174,7 +224,7 @@ export function BuildingModal({
                             onShowMissing(missing as Record<ResourceId, { need: number; have: number }>);
                         }}
                     >
-                        Gebäude upgraden ({upgradeCost})
+                        Gebäude upgraden
                     </button>
                 </div>
             )}
@@ -184,8 +234,8 @@ export function BuildingModal({
 
 function VillagerBadge({ label, tone }: { label: string; tone: "ok" | "warn" }) {
     const palette = tone === "ok"
-        ? { bg: GLASS_BG, border: THEME.panelBorder, color: THEME.text }
-        : { bg: "rgba(239,68,68,0.18)", border: "rgba(239,68,68,0.45)", color: THEME.text };
+        ? { bg: "linear-gradient(180deg, rgba(255,223,170,0.32), rgba(255,204,138,0.24))", border: "rgba(255,207,132,0.95)", color: "#3d2410" }
+        : { bg: "linear-gradient(180deg, rgba(255,188,188,0.28), rgba(230,120,90,0.26))", border: "rgba(230,120,90,0.8)", color: "#3d2410" };
 
     return (
         <span
@@ -193,15 +243,15 @@ function VillagerBadge({ label, tone }: { label: string; tone: "ok" | "warn" }) 
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                padding: "6px 10px",
-                borderRadius: 8,
+                padding: "7px 12px",
+                borderRadius: 12,
                 border: `2px solid ${palette.border}`,
                 background: palette.bg,
                 fontWeight: 800,
                 fontSize: 11,
                 letterSpacing: 0.2,
                 color: palette.color,
-                boxShadow: "0 2px 0 rgba(0,0,0,0.1)"
+                boxShadow: `${EDGE_SHADOW}, inset 0 1px 0 rgba(255,255,255,0.25)` ,
             }}
         >
             {label}
@@ -214,21 +264,31 @@ function ModalContainer({ children, onClose, title, headerAction }: { children: 
         <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "auto" }}>
             <div
                 style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "radial-gradient(circle at 26% 18%, rgba(255,210,140,0.22), rgba(22,12,6,0.82))",
+                    pointerEvents: "none",
+                    backdropFilter: "blur(5px)"
+                }}
+            />
+            <div
+                style={{
+                    position: "relative",
                     minWidth: "min(540px, 92vw)",
-                    background: CARD_BG,
-                    borderRadius: 16,
-                    padding: 18,
-                    border: PANEL_BORDER,
-                    boxShadow: THEME.panelShadow,
-                    backdropFilter: "blur(10px)",
+                    background: `${THEME.panelBg}, ${WOOD_TEXTURE}`,
+                    color: THEME.text,
+                    borderRadius: 20,
+                    padding: 22,
+                    border: "3px solid rgba(255, 207, 132, 0.88)",
+                    boxShadow: `${THEME.panelShadow}, inset 0 2px 0 rgba(255,255,255,0.18)` ,
                     maxHeight: "92vh",
                     overflow: "auto"
                 }}
             >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 5, background: THEME.accent, boxShadow: THEME.accentGlow }} />
-                        <div style={{ fontWeight: 800 }}>{title}</div>
+                        <div style={{ width: 16, height: 16, borderRadius: 8, background: THEME.accent, boxShadow: THEME.accentGlow, border: "2px solid rgba(255,255,255,0.4)" }} />
+                        <div style={{ fontWeight: 900, letterSpacing: 0.2, textShadow: "0 2px 0 rgba(0,0,0,0.28)" }}>{title}</div>
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                         {headerAction}
@@ -242,7 +302,8 @@ function ModalContainer({ children, onClose, title, headerAction }: { children: 
                                 border: PANEL_BORDER,
                                 background: GLASS_STRONG,
                                 cursor: "pointer",
-                                boxShadow: THEME.panelShadow
+                                boxShadow: THEME.panelShadow,
+                                color: THEME.text
                             }}
                         >
                             ×

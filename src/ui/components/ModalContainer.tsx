@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { MODAL_STYLE } from "../theme/modalStyleGuide";
+import { THEME } from "../theme";
 import styles from "./Modal.module.css";
 import { useModalContext } from "./ModalContext";
 
@@ -55,16 +56,20 @@ export function ModalContainer({ children, onClose, title, headerAction, modalId
     <div className={`${styles.overlay} ${visible ? styles.overlayVisible : ""}`} onClick={onOverlayClick} role="dialog" aria-modal="true">
       <div className={`${styles.modal} ${visible ? styles.modalVisible : ""}`} style={{
         ...MODAL_STYLE,
+        background: `${MODAL_STYLE.background}, repeating-linear-gradient(135deg, rgba(255, 230, 188, 0.12) 0px, rgba(255, 230, 188, 0.12) 12px, rgba(120, 78, 38, 0.14) 12px, rgba(120, 78, 38, 0.14) 22px)` ,
+        boxShadow: `${MODAL_STYLE.boxShadow}, inset 0 2px 0 rgba(255,255,255,0.18)` ,
         minWidth: 380,
         maxWidth: 600,
         width: "96vw",
         minHeight: 180,
         display: "flex",
         flexDirection: "column",
-        gap: 18
+        gap: 18,
+        position: "relative",
+        overflow: "hidden"
       }} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <div style={{ fontWeight: MODAL_STYLE.headerFontWeight, fontSize: MODAL_STYLE.headerFontSize }}>{title}</div>
+          <div style={{ fontWeight: MODAL_STYLE.headerFontWeight, fontSize: MODAL_STYLE.headerFontSize, textShadow: "0 2px 0 rgba(0,0,0,0.22)", letterSpacing: 0.2 }}>{title}</div>
           <div className={styles.actions}>
             {headerAction}
             <button
@@ -74,9 +79,10 @@ export function ModalContainer({ children, onClose, title, headerAction, modalId
                 ...MODAL_STYLE.button,
                 fontSize: 18,
                 padding: "8px 18px",
-                borderRadius: 12,
-                background: "#ffe082",
-                color: "#4b4327"
+                borderRadius: 14,
+                background: THEME.button.hoverBackground,
+                color: THEME.button.color,
+                boxShadow: `${THEME.shadows.button}, inset 0 2px 0 rgba(255,255,255,0.35)`
               }}
               aria-label="Close modal"
             >
