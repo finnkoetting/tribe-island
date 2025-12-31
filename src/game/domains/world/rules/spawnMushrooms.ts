@@ -37,7 +37,8 @@ const makeMushroom = (id: string, pos: Vec2, variant: number, amount: number): B
         progress: 0,
         duration: 0,
         blocked: false,
-        collectable: true
+        collectable: true,
+        started: false
     },
     variant,
     output: {

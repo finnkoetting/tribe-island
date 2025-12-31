@@ -1,5 +1,5 @@
-import { BUILDING_COSTS, formatCost } from "../../src/game/domains/buildings/model/buildingCosts";
-import type { BuildingTypeId, GameState, QuestId, ResourceId } from "../../src/game/types/GameState";
+import { BUILDING_COSTS, formatCost } from "../domains/buildings/model/buildingCosts";
+import type { BuildingTypeId, GameState, QuestId } from "../types/GameState";
 
 export type BuildItem = {
     id: string;
@@ -499,9 +499,10 @@ export const resourceProducers: Partial<Record<string, string[]>> = {
 };
 
 export function producerTitle(type: string) {
-    if ((BUILD_META as any)[type]) return (BUILD_META as any)[type].title;
-    if (type === "tree") return "Baum (kann gefällt werden)";
-    if (type === "berry_bush") return "Beerenbusch (wild)";
-    if (type === "mushroom") return "Pilzstelle (wild)";
-    return type;
+  const meta = BUILD_META[type as BuildingTypeId];
+  if (meta) return meta.title;
+  if (type === "tree") return "Baum (kann gefällt werden)";
+  if (type === "berry_bush") return "Beerenbusch (wild)";
+  if (type === "mushroom") return "Pilzstelle (wild)";
+  return type;
 }

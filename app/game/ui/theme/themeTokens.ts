@@ -1,4 +1,4 @@
-import { UI_THEME as THEME } from "../../../src/ui/theme";
+import { UI_THEME as THEME } from "../../../../src/ui/theme";
 
 export const GLASS_BG = THEME.glassBg;
 export const GLASS_STRONG = THEME.glassStrong;

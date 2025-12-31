@@ -25,9 +25,9 @@ export function evaluateTutorialQuests(st: GameState): GameState {
             continue;
         }
 
-        const locked = !previousDone;
-        const progress = locked || !target ? 0 : hasBuilding(target) ? q.goal : 0;
-        const done = locked ? false : progress >= q.goal;
+        const locked: boolean = !previousDone;
+        const progress: number = locked || !target ? 0 : hasBuilding(target) ? q.goal : 0;
+        const done: boolean = locked ? false : progress >= q.goal;
 
         if (q.progress !== progress || q.done !== done || q.locked !== locked) {
             quests[questId] = { ...q, progress, done, locked };

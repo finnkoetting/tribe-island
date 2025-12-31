@@ -1,8 +1,8 @@
 "use client";
 
-import type { GameState } from "../../../src/game/types/GameState";
-import { GLASS_BG, PANEL_BORDER, THEME } from "./themeTokens";
-import { RES_ORDER } from "./icons";
+import type { GameState } from "../../../../src/game/types/GameState";
+import { GLASS_BG, PANEL_BORDER, THEME } from "../theme/themeTokens";
+import { RES_ORDER } from "../icons";
 
 export function TopRightResources({ st }: { st: GameState }) {
     const ids = ["gold", "emerald"];

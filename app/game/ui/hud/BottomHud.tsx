@@ -1,8 +1,8 @@
 "use client";
 
-import type { BuildingTypeId } from "../../../src/game/types/GameState";
-import { GLASS_STRONG, THEME } from "./themeTokens";
 import { useState } from "react";
+import type { BuildingTypeId } from "../../../../src/game/types/GameState";
+import { GLASS_STRONG, THEME } from "../theme/themeTokens";
 
 export function BottomHud({
     buildMode,

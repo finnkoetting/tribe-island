@@ -12,7 +12,7 @@ import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal
 import BuildBar from "../../src/ui/game/hud/BuildBar";
 import { UI_THEME as THEME } from "../../src/ui/theme";
 import { ModalContainer } from "../../src/ui/components/ModalContainer";
-import { BottomHud, BuildingModal, TopRightResources, TutorialPanel, RES_ORDER } from "./ui/Overlays";
+import { BottomHud, BuildingModal, TopRightResources, TutorialPanel, RES_ORDER } from "./ui";
 import { MODAL_STYLE } from "../../src/ui/theme/modalStyleGuide";
 import {
     BUILDABLE_TYPE_SET,
@@ -21,7 +21,7 @@ import {
     prettifyResource,
     producerTitle,
     resourceProducers
-} from "./buildConfig";
+} from "../../src/game/content/buildConfig";
 
 const MIN_SAVE_INTERVAL_MS = 5000;
 

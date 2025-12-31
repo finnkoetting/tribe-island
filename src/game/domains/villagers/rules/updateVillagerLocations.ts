@@ -271,44 +271,7 @@ function harvestNearby(
         // Skip instant harvest; building tasks handle output timing for gatherers/woodcutters.
         return { harvested: false, buildings, inventory, event: null };
     }
-    const allowed = job === "woodcutter" ? ["tree"] : job === "gatherer" ? ["berry_bush", "mushroom"] : [];
-    if (!allowed.length) return { harvested: false, buildings, inventory, event: null };
-
-    let targetId: string | null = null;
-    let targetType: Building["type"] | null = null;
-
-    for (const b of Object.values(buildings)) {
-        if (!allowed.includes(b.type)) continue;
-        const anchor = buildingAnchorPos(b);
-        const dist = Math.hypot(anchor.x - pos.x, anchor.y - pos.y);
-        if (dist <= HARVEST_RADIUS) {
-            targetId = b.id;
-            targetType = b.type;
-            break;
-        }
-    }
-
-    if (!targetId || !targetType) return { harvested: false, buildings, inventory, event: null };
-
-    const yieldInfo = HARVEST_YIELD[targetType];
-    const nextBuildings = { ...buildings };
-    delete nextBuildings[targetId];
-
-    if (!yieldInfo) return { harvested: true, buildings: nextBuildings, inventory, event: null };
-
-    const { resource, amount } = yieldInfo;
-    const nextInventory = {
-        ...inventory,
-        [resource]: (inventory[resource] ?? 0) + amount
-    };
-
-    const event = {
-        id: "resource_added" as const,
-        atMs: nowMs,
-        payload: { resource, amount, source: job, buildingId: targetId }
-    };
-
-    return { harvested: true, buildings: nextBuildings, inventory: nextInventory, event };
+    return { harvested: false, buildings, inventory, event: null };
 }
 
 function idleWander(anchor: Vec2, villagerId: string, nowMs: number): Vec2 {

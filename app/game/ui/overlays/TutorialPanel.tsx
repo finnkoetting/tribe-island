@@ -1,8 +1,8 @@
 "use client";
 
-import type { BuildingTypeId, GameState } from "../../../src/game/types/GameState";
-import { BUILD_META, getActiveTutorialId, TUTORIAL_STEPS } from "../buildConfig";
-import { GLASS_BG, GRADIENT_EDGE, PANEL_BORDER, CARD_BG, ACCENT_BUTTON, THEME } from "./themeTokens";
+import type { BuildingTypeId, GameState } from "../../../../src/game/types/GameState";
+import { BUILD_META, getActiveTutorialId, TUTORIAL_STEPS } from "../../../../src/game/content/buildConfig";
+import { GLASS_BG, GRADIENT_EDGE, PANEL_BORDER, CARD_BG, ACCENT_BUTTON, THEME } from "../theme/themeTokens";
 
 export function TutorialPanel({ quests, onSelectBuild }: { quests: GameState["quests"]; onSelectBuild: (type: BuildingTypeId) => void }) {
     if (!quests) return null;

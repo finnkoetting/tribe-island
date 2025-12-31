@@ -3,6 +3,7 @@ import type { FC } from "react";
 import styles from "./BuildBar.module.css";
 import { UI_THEME as THEME } from "../../theme";
 import { BUILDING_COSTS } from "../../../game/domains/buildings/model/buildingCosts";
+import type { BuildingTypeId } from "../../../game/types/GameState";
 
 // Accept the same minimal shape as BUILD_SECTIONS from GameClient
 type UiBuildItem = {
@@ -11,11 +12,13 @@ type UiBuildItem = {
     title: string;
     cost?: string;
     size?: string;
+    status?: string;
 };
 
 type UiBuildSection = {
     id: string;
     title: string;
+    accent?: string;
     items: UiBuildItem[];
 };
 
@@ -130,7 +133,7 @@ const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => v
 
                             <div className={styles.costBadge}>
                                 {(() => {
-                                    const type = it.type as string | undefined;
+                                    const type = it.type as BuildingTypeId | undefined;
                                     const costObj = type ? BUILDING_COSTS[type] : undefined;
                                     if (costObj && Object.keys(costObj).length) {
                                         return (

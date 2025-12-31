@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { getLevelSpec } from "../../../src/game/domains/buildings/model/buildingLevels";
-import { canAffordCost, formatCost } from "../../../src/game/domains/buildings/model/buildingCosts";
-import type { GameState, ResourceId, BuildingTypeId } from "../../../src/game/types/GameState";
-import { MODAL_STYLE } from "../../../src/ui/theme/modalStyleGuide";
-import { BUILD_META } from "../buildConfig";
-import { GLASS_BG, GLASS_STRONG, CARD_BG, PANEL_BORDER, THEME } from "./themeTokens";
+import { getLevelSpec } from "../../../../src/game/domains/buildings/model/buildingLevels";
+import { canAffordCost, formatCost } from "../../../../src/game/domains/buildings/model/buildingCosts";
+import type { GameState, ResourceId, BuildingTypeId } from "../../../../src/game/types/GameState";
+import { MODAL_STYLE } from "../../../../src/ui/theme/modalStyleGuide";
+import { BUILD_META } from "../../../../src/game/content/buildConfig";
+import { GLASS_BG, GLASS_STRONG, CARD_BG, PANEL_BORDER, THEME } from "../theme/themeTokens";
 
 export function BuildingModal({
     open,

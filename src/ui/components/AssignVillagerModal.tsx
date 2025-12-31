@@ -1,10 +1,22 @@
 "use client";
 
 import React from "react";
+import type { GameState } from "../../game/types/GameState";
 import { ModalContainer } from "./ModalContainer";
 import { MODAL_STYLE } from "../theme/modalStyleGuide";
 
-export function AssignVillagerModal({ open, onClose, villagers, assigned, onAssign, onRemove }) {
+type VillagerView = NonNullable<GameState["villagers"][string]>;
+
+type AssignVillagerModalProps = {
+  open: boolean;
+  onClose: () => void;
+  villagers: VillagerView[];
+  assigned: VillagerView[];
+  onAssign: (villagerId: string) => void;
+  onRemove: (villagerId: string) => void;
+};
+
+export function AssignVillagerModal({ open, onClose, villagers, assigned, onAssign, onRemove }: AssignVillagerModalProps) {
   if (!open) return null;
   return (
     <ModalContainer onClose={onClose} title="Bewohner zuweisen">

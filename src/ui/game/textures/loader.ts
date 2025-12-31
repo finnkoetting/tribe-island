@@ -28,7 +28,7 @@ const manifest: Record<string, LoaderFn> = {
     "objects/tree/2": () => import("./objects/tree/2.png")
 };
 
-const bitmapCache: Record<string, Promise<ImageBitmap | null>> = {};
+const bitmapCache: Partial<Record<string, Promise<ImageBitmap | null>>> = {};
 
 async function toSrc(mod: any): Promise<string> {
     if (!mod) throw new Error("Invalid module");

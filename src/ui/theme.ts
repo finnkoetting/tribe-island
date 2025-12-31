@@ -14,6 +14,8 @@ export type UiTheme = {
     accent: string;
     accentGlow: string;
     overlayGradient: string;
+    accentButton?: string;
+    secondaryButton?: string;
 };
 
 // Centralized THEME for the UI. Use these tokens across components.
@@ -113,6 +115,8 @@ export const UI_THEME: UiTheme = {
     accent: THEME.colors.accent,
     accentGlow: `0 16px 40px ${THEME.colors.accentGlowColor}`,
     overlayGradient: THEME.colors.overlayGradient,
+    accentButton: THEME.colors.accentButton,
+    secondaryButton: THEME.colors.secondaryButton,
 };
 export const BUILDING_COLORS: Partial<Record<string, string>> = {
     gather_hut: "transparent",
