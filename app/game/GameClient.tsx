@@ -207,7 +207,7 @@ export default function GameClient() {
             </div>
 
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-                <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} />
+                <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} villagers={st.villagers} />
                 <TopRightResources st={st} />
 
                 <BuildingModal
