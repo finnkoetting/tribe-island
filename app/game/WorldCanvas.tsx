@@ -8,8 +8,6 @@ import { getBuildingSize, getFootprintTopLeft } from "../../src/game/domains/bui
 import type { BuildingTypeId, GameState, Vec2, WorldTileId } from "../../src/game/types/GameState";
 import desertTile1 from "../../src/ui/game/textures/terrain/desert/1.png";
 import desertTile2 from "../../src/ui/game/textures/terrain/desert/2.png";
-import desertTile3 from "../../src/ui/game/textures/terrain/desert/3.png";
-import desertTile4 from "../../src/ui/game/textures/terrain/desert/4.png";
 import forestTile1 from "../../src/ui/game/textures/terrain/forest/1.png";
 import forestTile2 from "../../src/ui/game/textures/terrain/forest/2.png";
 import forestTile3 from "../../src/ui/game/textures/terrain/forest/3.png";
@@ -47,14 +45,14 @@ const TILE_COLORS: Record<WorldTileId, string> = {
 
 const TILE_TEXTURE_SOURCES: Record<WorldTileId, StaticImageData[]> = {
     water: [waterTile1, waterTile2, waterTile3],
-    sand: [desertTile1, desertTile2, desertTile3, desertTile4],
+    sand: [desertTile1, desertTile2],
     rock: [mountainTile1, mountainTile2, mountainTile3],
     mountain: [mountainTile1, mountainTile2, mountainTile3],
     dirt: [meadowTile1, meadowTile2, meadowTile3],
     grass: [meadowTile1, meadowTile2, meadowTile3],
     forest: [forestTile1, forestTile2, forestTile3],
     meadow: [meadowTile1, meadowTile2, meadowTile3],
-    desert: [desertTile1, desertTile2, desertTile3, desertTile4]
+    desert: [desertTile1, desertTile2]
 };
 
 import { BUILDING_COLORS, UI_THEME as THEME } from "../../src/ui/theme";
@@ -1021,10 +1019,12 @@ function isMeadowTile(world: GameState["world"], pos: Vec2): boolean {
 }
 
 function hashFloat(seed: number, a: number, b: number): number {
+    // Lightweight xorshift mix to spread bits across the full 32-bit range
     let t = seed ^ (a * 374761393) ^ (b * 668265263);
-    t = (t ^ (t >> 13)) * 1274126177;
-    t ^= t >> 16;
-    return ((t >>> 0) % 4294967296) / 4294967295;
+    t ^= t << 13;
+    t ^= t >>> 17;
+    t ^= t << 5;
+    return (t >>> 0) / 4294967296;
 }
 
 function mulberry32(seed: number) {

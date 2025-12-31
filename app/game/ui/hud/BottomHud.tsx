@@ -92,6 +92,7 @@ function HudButton({ label, icon, active = false, large = false, onClick }: HudB
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "column",
+                fontSize: 28,
                 gap: 8,
                 transform: hover ? "translateY(-4px)" : "translateY(0)",
                 transition: "transform .16s ease, box-shadow .16s ease, border .16s ease, background .16s ease",
