@@ -552,6 +552,7 @@ export default function GameClient() {
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
     const [buildMenuOpen, setBuildMenuOpen] = useState<boolean>(false);
     const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [missingModalOpen, setMissingModalOpen] = useState(false);
     const [missingResources, setMissingResources] = useState<Record<string, { need: number; have: number }>>({});
@@ -809,6 +810,7 @@ export default function GameClient() {
                         cameraSaveTimeout.current = setTimeout(() => saveCamera(cam), 400);
                     }}
                     onFpsUpdate={setFps}
+                    onDragActive={(active) => setIsDragging(active)}
                 />
             </div>
 
@@ -899,15 +901,15 @@ export default function GameClient() {
                 />
                 <div style={{ position: "fixed", left: "50%", bottom: "5%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 40, width: "80vw" }}>
                     <div
-                        aria-hidden={!buildMenuOpen}
-                        style={{
-                            pointerEvents: buildMenuOpen ? "auto" : "none",
-                            display: "flex",
-                            justifyContent: "center",
-                            transition: "opacity .18s ease",
-                            opacity: buildMenuOpen ? 1 : 0
-                        }}
-                    >
+                            aria-hidden={!buildMenuOpen || !!buildMode || isDragging}
+                            style={{
+                                pointerEvents: buildMenuOpen && !isDragging && !buildMode ? "auto" : "none",
+                                display: "flex",
+                                justifyContent: "center",
+                                transition: "opacity .18s ease",
+                                opacity: buildMenuOpen ? 1 : 0
+                            }}
+                        >
                         <BuildBar
                             sections={BUILD_SECTIONS}
                             onSelect={handleSelectBuild}
@@ -1430,12 +1432,7 @@ function BuildingModal({
     return (
         <ModalContainer
             onClose={onClose}
-            title={
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {meta?.title ?? building.type}
-                    <Badge label={`Lvl ${building.level}`} tone="muted" />
-                </span>
-            }
+            title={<span>{meta?.title ?? "Gebäude"}</span>}
             headerAction={
                 <button
                     type="button"
@@ -1673,31 +1670,14 @@ function BottomHud({
                 justifyContent: "center",
                 pointerEvents: "none",
                 gap: 12,
-                background: THEME.overlayGradient
+                background: THEME.overlayGradient,
+                zIndex: 60
             }}
         >
                 <div style={{ width: "100%", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
                 <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "15px" }}>
                     <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
                     <div style={{ position: "relative", display: "inline-block" }}>
-                        <div style={{ position: "absolute", top: -22, left: "50%", transform: "translateX(-50%)" }}>
-                            <button
-                                onClick={() => onCloseBuildMenu?.()}
-                                aria-label="Abbrechen"
-                                style={{
-                                    width: 36,
-                                    height: 28,
-                                    borderRadius: 8,
-                                    border: `1px solid ${THEME.chipBorder}`,
-                                    background: THEME.chipBg,
-                                    cursor: "pointer",
-                                    boxShadow: THEME.panelShadow,
-                                    fontWeight: 800
-                                }}
-                            >
-                                ✕
-                            </button>
-                        </div>
                         <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
                     </div>
                     <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />

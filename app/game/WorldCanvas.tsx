@@ -89,9 +89,10 @@ export type WorldCanvasProps = {
     onFpsUpdate?: (fps: number) => void;
     initialCamera?: Camera;
     onCameraChange?: (cam: Camera) => void;
+    onDragActive?: (active: boolean) => void;
 };
 
-export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange }: WorldCanvasProps) {
+export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange, onDragActive }: WorldCanvasProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const spaceDownRef = useRef(false);
@@ -100,6 +101,10 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [cam, setCam] = useState<Camera>(initialCamera ?? { x: 0, y: 0, z: 1 });
     const initialCamApplied = useRef<boolean>(false);
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
+
+    useEffect(() => {
+        onDragActive?.(drag.active);
+    }, [drag.active, onDragActive]);
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTextures, setTreeTextures] = useState<ImageBitmap[] | null>(null);
