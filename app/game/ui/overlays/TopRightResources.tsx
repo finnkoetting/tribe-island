@@ -16,13 +16,8 @@ export function TopRightResources({ st }: { st: GameState }) {
                 top: 16,
                 right: 16,
                 pointerEvents: "auto",
-                padding: "12px 14px",
                 minWidth: 260,
-                background: "linear-gradient(150deg, #e7be82 0%, #d89a58 52%, #ce8e59ff 100%)",
-                borderRadius: 18,
-                border: "2px solid rgba(255, 230, 190, 0.15)",
-                boxShadow: `${THEME.panelShadow}, inset 0 2px 0 rgba(255,255,255,0.16)` ,
-                backdropFilter: "blur(12px)",
+                background: "transparent",
                 display: "grid",
                 gap: 10
             }}
@@ -38,7 +33,7 @@ export function TopRightResources({ st }: { st: GameState }) {
                             minWidth: 120,
                             padding: "9px 12px",
                             borderRadius: 13,
-                            boxShadow: `${EDGE_SHADOW}, inset 0 1px 0 rgba(255,255,255,0.22)` ,
+                            boxShadow: `${EDGE_SHADOW}, inset 0 1px 0 rgba(255,255,255,0.22)`,
                             backdropFilter: "blur(8px)",
                             background: "linear-gradient(180deg, #f7d7a0 0%, #e7b46e 58%, #c98544 100%)"
                         }}

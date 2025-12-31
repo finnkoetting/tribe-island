@@ -78,7 +78,7 @@ function VillagerButton({ active, onClick }: { active: boolean; onClick?: () => 
                 transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
             }}
         >
-            <span style={{ width: 44, height: 44, borderRadius: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.35)", border: `1px solid ${THEME.panelBorder}`, boxShadow: "inset 0 2px 0 rgba(255,255,255,0.35)" }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3d2410" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="8" r="3.2" />
                     <path d="M5 20c1-3 4-5 7-5s6 2 7 5" />
@@ -93,7 +93,7 @@ function InventoryButton({ active, onClick }: { active: boolean; onClick: () => 
     const [hover, setHover] = useState(false);
     const activeBorder = `2px solid ${THEME.accent}`;
     const activeBg = "linear-gradient(180deg, #fff0c8 0%, #ffd37f 55%, #eea55b 100%)";
-    const baseBg = "linear-gradient(180deg, #ffe2b0 0%, #f3c27d 60%, #db8f42 100%)";
+    const baseBg = "linear-gradient(150deg, #e7be82 0%, #d89a58 52%, #ce8e59ff 100%)";
     const activeShadow = `${EDGE_SHADOW}, 0 0 0 2px rgba(255,207,132,0.55)`;
     return (
         <button
@@ -118,7 +118,7 @@ function InventoryButton({ active, onClick }: { active: boolean; onClick: () => 
                 transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
             }}
         >
-            <span style={{ width: 44, height: 44, borderRadius: 14, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.35)", border: `1px solid ${THEME.panelBorder}`, boxShadow: "inset 0 2px 0 rgba(255,255,255,0.35)" }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3d2410" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 7H4v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
                     <path d="M16 3v4" />
@@ -158,7 +158,7 @@ function LargeBuildButton({ active, onClick }: { active: boolean; onClick: () =>
                 transition: "transform .12s ease, box-shadow .12s ease, background .12s ease"
             }}
         >
-            <span style={{ width: 54, height: 54, borderRadius: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.45)", border: `1px solid ${THEME.panelBorder}`, boxShadow: "inset 0 2px 0 rgba(255,255,255,0.35)" }}>
+            <span style={{ width: 54, height: 54, borderRadius: 18, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3d2410" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 20 14 10" />
                     <path d="M13 6 17 2l3 3-4 4" />
