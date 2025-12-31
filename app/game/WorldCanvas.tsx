@@ -1164,7 +1164,7 @@ function drawBuildings(
         if (b.type === "mushroom") {
             const idx = b.variant && mushroomTextures ? Math.max(0, Math.min(mushroomTextures.length - 1, b.variant - 1)) : 0;
             const tex = mushroomTextures && mushroomTextures.length ? mushroomTextures[idx] : null;
-            drawMushroomTile(ctx, b.pos, originX, originY, cosA, sinA, tex);
+            drawMushroomTile(ctx, b.pos, originX, originY - 10, cosA, sinA, tex);
             continue;
         }
 
