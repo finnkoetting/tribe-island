@@ -1,0 +1,265 @@
+/* BuildBar styles */
+.wrapper {
+  width: min(1100px, 92%);
+  padding: 14px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.45);
+  pointer-events: auto;
+}
+
+/* transitions applied on the wrapper itself to preserve backdrop-filter */
+.wrapper {
+  transition: opacity .18s ease, transform .2s cubic-bezier(.2,.9,.2,1);
+  will-change: opacity, transform;
+}
+
+.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.closed {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  pointer-events: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.tab {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+  color: #efe8d8;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: rgba(245,165,36,0.12);
+  border-color: rgba(245,165,36,0.18);
+  color: #ffecc6;
+}
+
+/* Local module class used from JSX: styles.active */
+.active {
+  background: rgba(245,165,36,0.12);
+  border-color: rgba(245,165,36,0.18);
+  color: #ffecc6;
+}
+
+.items {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  padding: 20px 0px 10px 0px;
+  overflow-y: hidden;
+  overflow-x: scroll;
+}
+
+.itemCard {
+  width: 250px;
+  min-width: 250px;
+  background: #f5a5241f;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 8px 10px;
+  align-items: center;
+  position: relative;
+  border: 1px solid #f5a5242e;
+}
+
+/* Hover / focus effect: lift, subtle scale and colored glow using --accent */
+.itemCard {
+  transition: transform 180ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease, filter 180ms ease;
+  transform-origin: center bottom;
+  overflow: visible;
+}
+
+.itemCard:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.1);
+  filter: brightness(1.03);
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.12) brightness(0.95);
+}
+
+.itemCard.disabled:hover {
+  transform: none;
+  box-shadow: none;
+  filter: grayscale(0.12) brightness(0.95);
+}
+
+.clickable { cursor: pointer; }
+
+.costBadge {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(0,0,0,0.18);
+  color: #ffd89b;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.03);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.costList { display:flex; gap:8px; align-items:center; }
+.costItem { display:flex; gap:6px; align-items:center; opacity:0.95 }
+.costAmount { font-weight:800; color:#fff; font-size:12px }
+
+/* Custom scrollbars for chromium-based browsers */
+.tabs::-webkit-scrollbar,
+.items::-webkit-scrollbar {
+  height: 10px;
+}
+.tabs::-webkit-scrollbar-track,
+.items::-webkit-scrollbar-track {
+  background: transparent;
+}
+.tabs::-webkit-scrollbar-thumb,
+.items::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0);
+}
+.tabs::-webkit-scrollbar-thumb:hover,
+.items::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Firefox fallback */
+.tabs,
+.items {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.06) transparent;
+}
+
+/* Make sure the scrollbars look good on dark backgrounds */
+@media (prefers-color-scheme: dark) {
+  .tabs::-webkit-scrollbar-thumb,
+  .items::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.06);
+  }
+}
+
+.statusBadge {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.status-available { background: rgba(34,197,94,0.12); color: #bbf7d0; border: 1px solid rgba(34,197,94,0.18); }
+.status-planned { background: rgba(255,193,7,0.08); color: #ffe8a8; border: 1px solid rgba(255,193,7,0.12); }
+.status-locked { background: rgba(107,114,128,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.02); }
+
+.thumbWrap {
+  width: 72px;
+  height: 72px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  grid-row: 1 / span 3;
+}
+
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.titleRow {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.title {
+  font-weight: 800;
+  color: #fff;
+  font-size: 14px;
+}
+
+.size {
+  font-weight: 600;
+  color: #ddd;
+  font-size: 12px;
+  text-align: left;
+}
+
+.topRight {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  justify-self: end;
+  color: #ffd89b;
+  font-weight: 800;
+}
+
+.midRight {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  justify-self: end;
+  color: #cbd5e1;
+  opacity: 0.95;
+  font-weight: 700;
+}
+
+.bottomRight {
+  grid-column: 2 / 3;
+  grid-row: 3 / 4;
+  justify-self: end;
+  color: #ddd;
+  font-size: 13px;
+}
+
+.resIcon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.info {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #ddd;
+}
+
+.cost { color: #ffd89b; font-weight: 700; }
+.duration { color: #cbd5e1; opacity: 0.9 }

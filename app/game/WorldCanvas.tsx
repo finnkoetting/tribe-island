@@ -89,9 +89,10 @@ export type WorldCanvasProps = {
     onFpsUpdate?: (fps: number) => void;
     initialCamera?: Camera;
     onCameraChange?: (cam: Camera) => void;
+    onDragActive?: (active: boolean) => void;
 };
 
-export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange }: WorldCanvasProps) {
+export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange, onDragActive }: WorldCanvasProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const spaceDownRef = useRef(false);
@@ -100,6 +101,10 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [cam, setCam] = useState<Camera>(initialCamera ?? { x: 0, y: 0, z: 1 });
     const initialCamApplied = useRef<boolean>(false);
     const [drag, setDrag] = useState<DragState>({ active: false, startX: 0, startY: 0, camX: 0, camY: 0 });
+
+    useEffect(() => {
+        onDragActive?.(drag.active);
+    }, [drag.active, onDragActive]);
     const [viewSize, setViewSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
     const [tileTextures, setTileTextures] = useState<TileTextureMap | null>(null);
     const [treeTextures, setTreeTextures] = useState<ImageBitmap[] | null>(null);
@@ -476,6 +481,8 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             berryBushTexture,
             mushroomTextures,
             campfireTexture,
+            campfireLvl2Texture,
+            campfireLvl3Texture,
             collectorTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
@@ -1131,6 +1138,8 @@ function drawBuildings(
     berryBushTexture: ImageBitmap | null,
     mushroomTextures: ImageBitmap[] | null,
     campfireTexture: ImageBitmap | null,
+    campfireLvl2Texture: ImageBitmap | null,
+    campfireLvl3Texture: ImageBitmap | null,
     collectorTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);
@@ -1164,7 +1173,7 @@ function drawBuildings(
         if (b.type === "mushroom") {
             const idx = b.variant && mushroomTextures ? Math.max(0, Math.min(mushroomTextures.length - 1, b.variant - 1)) : 0;
             const tex = mushroomTextures && mushroomTextures.length ? mushroomTextures[idx] : null;
-            drawMushroomTile(ctx, b.pos, originX, originY, cosA, sinA, tex);
+            drawMushroomTile(ctx, b.pos, originX, originY - 10, cosA, sinA, tex);
             continue;
         }
 

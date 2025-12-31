@@ -16,14 +16,15 @@ import { UI_THEME as THEME, BUILDING_COLORS } from "../../src/ui/theme";
 import { ModalContainer } from "../../src/ui/components/ModalContainer";
 import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal";
 import { MODAL_STYLE } from "../../src/ui/theme/modalStyleGuide";
+import BuildBar from "../../src/ui/game/hud/BuildBar";
 
 const GLASS_BG = THEME.glassBg;
 const GLASS_STRONG = THEME.glassStrong;
 const CARD_BG = THEME.cardBg;
 const MUTED_BG = THEME.mutedBg;
 const GRADIENT_EDGE = THEME.gradientEdge;
-const ACCENT_BUTTON = THEME.accentButton;
-const SECONDARY_BUTTON = THEME.secondaryButton;
+const ACCENT_BUTTON = "linear-gradient(135deg, #ffd9a3, #ffb38a)";
+const SECONDARY_BUTTON = THEME.cardBg;
 const PANEL_BORDER = `1px solid ${THEME.panelBorder}`;
 const CHIP_BORDER = `1px solid ${THEME.chipBorder}`;
 const CARD_MIN_HEIGHT = 210;
@@ -35,7 +36,7 @@ type BuildItem = {
     effect: string;
     upgrade: string;
     status: "available" | "locked" | "planned";
-    type?: BuildingTypeId;
+    type?: string | BuildingTypeId;
     cost?: string;
 };
 
@@ -48,12 +49,12 @@ type BuildSection = {
 };
 
 const BUILD_SECTIONS: BuildSection[] = [
-    {
-        id: "stage1",
-        title: "Stufe 1 – Start & Ueberleben",
-        focus: "Nahrung, Moral, Basis-Kontrolle",
-        accent: "#ff914d",
-        items: [
+  {
+    id: "stage1",
+    title: "Start",
+    focus: "Grundsteuerung & Überleben",
+    accent: "#ff914d",
+    items: [
             {
                 id: "townhall",
                 type: "townhall",
@@ -62,27 +63,7 @@ const BUILD_SECTIONS: BuildSection[] = [
                 effect: "Dorfzentrum, Job-Zuweisung, Quest-Trigger",
                 upgrade: "Mehr Villager-Slots, neue Menues",
                 status: "available",
-                cost: "Start"
-            },
-            {
-                id: "campfire",
-                type: "campfire",
-                title: "Lagerfeuer",
-                size: "2x2",
-                effect: "Moral-Stabilisator, Nacht-Sicherheit",
-                upgrade: "Groessere Moral-Aura",
-                status: "available",
-                cost: "10 Holz"
-            },
-            {
-                id: "road",
-                type: "road",
-                title: "Weg",
-                size: "1x1",
-                effect: "Verbinde Gebaeude",
-                upgrade: "Schneller laufen",
-                status: "available",
-                cost: "1 Holz"
+                cost: "12 Holz, 6 Beeren"
             },
             {
                 id: "gather_hut",
@@ -92,113 +73,375 @@ const BUILD_SECTIONS: BuildSection[] = [
                 effect: "Nahrung herstellen",
                 upgrade: "+Slots, bessere Tools",
                 status: "available",
-                cost: "20 Holz"
+                cost: "8 Holz"
             },
+            {
+                id: "campfire",
+                type: "campfire",
+                title: "Lagerfeuer",
+                size: "2x2",
+                effect: "Moral-Stabilisator, Nacht-Sicherheit",
+                upgrade: "Groessere Moral-Aura",
+                status: "available",
+                cost: "4 Holz"
+            },
+            {
+                id: "sleep_hut",
+                type: "sleep_hut",
+                title: "Schlafhuette",
+                size: "2x2",
+                effect: "Regeneration, senkt Erschoepfung",
+                upgrade: "Mehr Betten",
+                status: "available",
+                cost: "10 Holz"
+            },
+            {
+                id: "path",
+                type: "road",
+                title: "Weg",
+                size: "1x1",
+                effect: "Verbinde Gebaeude",
+                upgrade: "Schneller laufen",
+                status: "available",
+                cost: "1 Holz"
+            }
+    ]
+  },
+  {
+    id: "stage2",
+    title: "Versorgung",
+    focus: "Nahrung & Stabilitaet",
+    accent: "#fbbf24",
+    items: [
             {
                 id: "storage_small",
                 type: "storage",
-                title: "Kleines Lager",
+                title: "Lager",
                 size: "2x2",
                 effect: "Erhoeht Lagerkapazitaet",
                 upgrade: "Richtung Grosses Lager",
                 status: "available",
-                cost: "25 Holz, 10 Stein"
+                cost: "10 Holz, 6 Stein"
             },
-            { id: "woodcutter", title: "Holzfaellerhuette", size: "2x2", effect: "Holzproduktion", upgrade: "Effizientere Arbeit", status: "planned" },
-            { id: "sleep_hut", title: "Schlafhuette", size: "2x2", effect: "Regeneration, senkt Erschoepfung", upgrade: "Mehr Betten", status: "planned" },
-            { id: "well", title: "Brunnen", size: "1x1", effect: "Krankheit runter, Moral leicht rauf", upgrade: "Staerkere Effekte", status: "planned" }
-        ]
-    },
-    {
-        id: "stage2",
-        title: "Stufe 2 – Stabilisierung & Alltag",
-        focus: "Sicherheit, Veredelung, Dorfleben",
-        accent: "#fbbf24",
-        items: [
-            { id: "quarry", title: "Steinbruch", size: "3x3", effect: "Steinproduktion", upgrade: "Erz-Chance", status: "planned" },
-            { id: "workbench", title: "Werkbank", size: "2x2", effect: "Werkzeuge Stufe I", upgrade: "Stufe II/III", status: "planned" },
-            { id: "drying_rack", title: "Trockengestell", size: "2x1", effect: "Nahrung haltbarer", upgrade: "Geringerer Verderb", status: "planned" },
+      {
+        id: "well",
+        type: "well",
+        title: "Brunnen",
+        size: "1x1",
+        effect: "Krankheit runter, Moral leicht rauf",
+        upgrade: "Staerkere Effekte",
+        status: "planned"
+      },
+      {
+        id: "woodcutter",
+        type: "woodcutter",
+        title: "Holzfaeller",
+        size: "2x2",
+        effect: "Holzproduktion",
+        upgrade: "Effizientere Arbeit",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage3",
+    title: "Sicherheit",
+    focus: "Schutz & Vorbereitung",
+    accent: "#22c55e",
+    items: [
             {
                 id: "watchpost",
                 type: "watchpost",
-                title: "Wachtposten",
+                title: "Wache",
                 size: "2x2",
                 effect: "Angriffsschaden runter",
                 upgrade: "Sichtweite rauf",
                 status: "available",
                 cost: "18 Holz, 6 Stein"
-            },
-            { id: "fishing_hut", title: "Fischerhuette", size: "2x2 (am Wasser)", effect: "Fisch", upgrade: "Netze, Boote", status: "planned" },
-            { id: "herb_garden", title: "Kraeutergarten", size: "2x2", effect: "Medizin-Basis", upgrade: "Bessere Heilung", status: "planned" },
-            { id: "meeting_ground", title: "Versammlungsplatz", size: "3x3", effect: "Moral-Boost bei Events", upgrade: "Buff-Dauer rauf", status: "planned" }
-        ]
-    },
-    {
-        id: "stage3",
-        title: "Stufe 3 – Veredelung & Tiefe",
-        focus: "Planung, Produktion, Entscheidungen",
-        accent: "#3b82f6",
-        items: [
-            {
-                id: "sawmill",
-                type: "sawmill",
-                title: "Saegewerk",
-                size: "3x2",
-                effect: "Wandelt Holz in Bretter",
-                upgrade: "Schnellerer Zuschnitt",
-                status: "available"
-            },
-            { id: "weaving", title: "Weberei", size: "3x2", effect: "Fasern zu Stoffen", upgrade: "Moral-Items", status: "planned" },
-            { id: "medical_hut", title: "Medizinische Huette", size: "2x2", effect: "Krankheiten heilbar", upgrade: "Seuchen abmildern", status: "planned" },
-            { id: "warehouse_big", title: "Grosses Lager", size: "3x3", effect: "Massive Kapazitaet", upgrade: "Sortierung (Bonusse)", status: "planned" },
-            { id: "tavern", title: "Taverne", size: "3x3", effect: "Moral hoch, Konflikte runter", upgrade: "Produktivitaetsbonus", status: "planned" },
-            { id: "research_tent", title: "Forschungszelt", size: "2x2", effect: "Erste Techs", upgrade: "Richtung Forschungsgebaeude", status: "planned" }
-        ]
-    },
-    {
-        id: "stage4",
-        title: "Stufe 4 – Midgame-Strategie",
-        focus: "Spezialisierung und Risiken",
-        accent: "#a855f7",
-        items: [
-            { id: "academy", title: "Akademie", size: "3x3", effect: "Forschung beschleunigen", upgrade: "Pfad-Spezialisierung", status: "planned" },
-            { id: "mine", title: "Mine", size: "3x3", effect: "Kupfer/Eisen", upgrade: "Tiefer graben", status: "planned" },
-            { id: "forge", title: "Schmiede", size: "3x3", effect: "Metallwerkzeuge, Waffen", upgrade: "Qualitaet rauf", status: "planned" },
-            { id: "watchtower", title: "Wachturm", size: "2x3", effect: "Angriffe frueh erkennen", upgrade: "Fernschaden", status: "planned" },
-            { id: "gate_wall", title: "Tor & Palisade", size: "Variabel", effect: "Dorf verteidigen", upgrade: "Stein zu Metall", status: "planned" },
-            { id: "market", title: "Marktplatz", size: "4x4", effect: "Karawanen-Handel", upgrade: "Bessere Angebote", status: "planned" }
-        ]
-    },
-    {
-        id: "stage5",
-        title: "Stufe 5 – Spaetes Spiel & Emotion",
-        focus: "Story, Ruf, Konsequenzen",
-        accent: "#ef4444",
-        items: [
-            { id: "temple", title: "Tempel", size: "4x4", effect: "Globale Moral, Ruf", upgrade: "Seltene Events", status: "planned" },
-            { id: "memorial", title: "Gedenkstaette", size: "2x2", effect: "Trauer-Malus runter", upgrade: "Buffs aus Erinnerungen", status: "planned" },
-            { id: "caravan_yard", title: "Karawanenhof", size: "4x3", effect: "Haefigere Haendler", upgrade: "Exklusive Waren", status: "planned" },
-            { id: "archive", title: "Archiv", size: "3x2", effect: "Wissen speichern", upgrade: "Tech-Kosten runter", status: "planned" },
-            { id: "training_ground", title: "Ausbildungsplatz", size: "3x3", effect: "Villager trainieren", upgrade: "Spezialisierungen", status: "planned" },
-            { id: "ritual_ground", title: "Ritualplatz", size: "3x3", effect: "Risiko-Events mit Chance", upgrade: "Kontrolle rauf", status: "planned" }
-        ]
-    },
-    {
-        id: "optional",
-        title: "Optional / Late-Late Game",
-        focus: "Prestige und Welt",
-        accent: "#111827",
-        items: [
-            { id: "observatory", title: "Observatorium", size: "3x3", effect: "Events vorhersagen", upgrade: "Praezision", status: "planned" },
-            { id: "harbor", title: "Hafen", size: "4x3", effect: "Neue Karten / Welt", upgrade: "Schiffe", status: "planned" },
-            { id: "outpost", title: "Aussenposten", size: "3x3", effect: "Ressourcen remote", upgrade: "Automatisierung", status: "planned" },
-            { id: "hunting_cabin", title: "Jagdhuette", size: "3x2", effect: "Leder & Fleisch", upgrade: "Bessere Fallen", status: "planned" },
-            { id: "bridge", title: "Bruecke", size: "Variabel", effect: "Neue Biome", upgrade: "Stabilitaet", status: "planned" },
-            { id: "lighthouse", title: "Leuchtturm", size: "2x2", effect: "Karawanen-Sicht", upgrade: "Signalweite", status: "planned" },
-            { id: "guildhall", title: "Gildenhaus", size: "3x3", effect: "Quests & Ruf", upgrade: "Auftragswahl", status: "planned" },
-            { id: "monument", title: "Monument", size: "4x4", effect: "Prestige-Bau", upgrade: "Stadtbonus", status: "planned" }
-        ]
-    }
+            }
+    ]
+  },
+  {
+    id: "stage4",
+    title: "Handwerk",
+    focus: "Verarbeitung & Effizienz",
+    accent: "#3b82f6",
+    items: [
+      {
+        id: "sawmill",
+        type: "sawmill",
+        title: "Saegewerk",
+        size: "3x2",
+        effect: "Wandelt Holz in Bretter",
+        upgrade: "Schnellerer Zuschnitt",
+        status: "available"
+      },
+      {
+        id: "workbench",
+        type: "workbench",
+        title: "Werkbank",
+        size: "2x2",
+        effect: "Werkzeuge Stufe I",
+        upgrade: "Stufe II/III",
+        status: "planned"
+      },
+      {
+        id: "drying_rack",
+        type: "drying_rack",
+        title: "Trockner",
+        size: "2x1",
+        effect: "Nahrung haltbarer",
+        upgrade: "Geringerer Verderb",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage5",
+    title: "Rohstoffe",
+    focus: "Stein & Metall",
+    accent: "#a855f7",
+    items: [
+      {
+        id: "quarry",
+        type: "quarry",
+        title: "Steinbruch",
+        size: "3x3",
+        effect: "Steinproduktion",
+        upgrade: "Erz-Chance",
+        status: "planned"
+      },
+      {
+        id: "mine",
+        type: "mine",
+        title: "Mine",
+        size: "3x3",
+        effect: "Kupfer/Eisen",
+        upgrade: "Tiefer graben",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage6",
+    title: "Verteidigung",
+    focus: "Aktiver Schutz",
+    accent: "#ef4444",
+    items: [
+      {
+        id: "forge",
+        type: "forge",
+        title: "Schmiede",
+        size: "3x3",
+        effect: "Metallwerkzeuge, Waffen",
+        upgrade: "Qualitaet rauf",
+        status: "planned"
+      },
+      {
+        id: "watchtower",
+        type: "watchtower",
+        title: "Turm",
+        size: "2x3",
+        effect: "Angriffe frueh erkennen",
+        upgrade: "Fernschaden",
+        status: "planned"
+      },
+      {
+        id: "gate_wall",
+        type: "gate_wall",
+        title: "Palisade",
+        size: "Variabel",
+        effect: "Dorf verteidigen",
+        upgrade: "Stein zu Metall",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage7",
+    title: "Handel",
+    focus: "Karawanen & Austausch",
+    accent: "#14b8a6",
+    items: [
+      {
+        id: "market",
+        type: "market",
+        title: "Markt",
+        size: "4x4",
+        effect: "Karawanen-Handel",
+        upgrade: "Bessere Angebote",
+        status: "planned"
+      },
+      {
+        id: "caravan_yard",
+        type: "caravan_yard",
+        title: "Karawane",
+        size: "4x3",
+        effect: "Haefigere Haendler",
+        upgrade: "Exklusive Waren",
+        status: "planned"
+      },
+      {
+        id: "harbor",
+        type: "harbor",
+        title: "Hafen",
+        size: "4x3",
+        effect: "Neue Karten / Welt",
+        upgrade: "Schiffe",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage8",
+    title: "Wissen",
+    focus: "Forschung & Spezialisierung",
+    accent: "#0ea5e9",
+    items: [
+      {
+        id: "academy",
+        type: "academy",
+        title: "Akademie",
+        size: "3x3",
+        effect: "Forschung beschleunigen",
+        upgrade: "Pfad-Spezialisierung",
+        status: "planned"
+      },
+      {
+        id: "archive",
+        type: "archive",
+        title: "Archiv",
+        size: "3x2",
+        effect: "Wissen speichern",
+        upgrade: "Tech-Kosten runter",
+        status: "planned"
+      },
+      {
+        id: "observatory",
+        type: "observatory",
+        title: "Observatorium",
+        size: "3x3",
+        effect: "Events vorhersagen",
+        upgrade: "Praezision",
+        status: "planned"
+      },
+      {
+        id: "research_tent",
+        type: "research_tent",
+        title: "Forschung",
+        size: "2x2",
+        effect: "Erste Techs",
+        upgrade: "Richtung Forschungsgebaeude",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage9",
+    title: "Kultur",
+    focus: "Moral, Ruf, Events",
+    accent: "#f97316",
+    items: [
+      {
+        id: "tavern",
+        type: "tavern",
+        title: "Taverne",
+        size: "3x3",
+        effect: "Moral hoch, Konflikte runter",
+        upgrade: "Produktivitaetsbonus",
+        status: "planned"
+      },
+      {
+        id: "temple",
+        type: "temple",
+        title: "Tempel",
+        size: "4x4",
+        effect: "Globale Moral, Ruf",
+        upgrade: "Seltene Events",
+        status: "planned"
+      },
+      {
+        id: "memorial",
+        type: "memorial",
+        title: "Gedenken",
+        size: "2x2",
+        effect: "Trauer-Malus runter",
+        upgrade: "Buffs aus Erinnerungen",
+        status: "planned"
+      },
+      {
+        id: "ritual_ground",
+        type: "ritual_ground",
+        title: "Ritual",
+        size: "3x3",
+        effect: "Risiko-Events mit Chance",
+        upgrade: "Kontrolle rauf",
+        status: "planned"
+      },
+      {
+        id: "meeting_ground",
+        type: "meeting_ground",
+        title: "Platz",
+        size: "3x3",
+        effect: "Moral-Boost bei Events",
+        upgrade: "Buff-Dauer rauf",
+        status: "planned"
+      }
+    ]
+  },
+  {
+    id: "stage10",
+    title: "Prestige",
+    focus: "Endgame & Meta",
+    accent: "#111827",
+    items: [
+      {
+        id: "outpost",
+        type: "outpost",
+        title: "Aussenposten",
+        size: "3x3",
+        effect: "Ressourcen remote",
+        upgrade: "Automatisierung",
+        status: "planned"
+      },
+      {
+        id: "guildhall",
+        type: "guildhall",
+        title: "Gilde",
+        size: "3x3",
+        effect: "Quests & Ruf",
+        upgrade: "Auftragswahl",
+        status: "planned"
+      },
+      {
+        id: "monument",
+        type: "monument",
+        title: "Monument",
+        size: "4x4",
+        effect: "Prestige-Bau",
+        upgrade: "Stadtbonus",
+        status: "planned"
+      },
+      {
+        id: "bridge",
+        type: "bridge",
+        title: "Bruecke",
+        size: "Variabel",
+        effect: "Neue Biome",
+        upgrade: "Stabilitaet",
+        status: "planned"
+      },
+      {
+        id: "lighthouse",
+        type: "lighthouse",
+        title: "Leuchtturm",
+        size: "2x2",
+        effect: "Karawanen-Sicht",
+        upgrade: "Signalweite",
+        status: "planned"
+      }
+    ]
+  }
 ];
 
 const TUTORIAL_STEPS: Array<{ id: QuestId; description: string; target?: BuildingTypeId; hint?: string }> = [
@@ -254,7 +497,7 @@ const BUILD_META: Record<BuildingTypeId, { title: string; cost: string; size: st
 );
 
 
-const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: FC; color: string }> = [
+const RES_ORDER: Array<{ id: string; label: string; Icon: FC; color: string }> = [
     { id: "wood", label: "Holz", Icon: WoodIcon, color: "#d4a373" },
     { id: "planks", label: "Bretter", Icon: WoodIcon, color: "#c8a46b" },
     { id: "berries", label: "Beeren", Icon: BerriesIcon, color: "#b85acb" },
@@ -307,7 +550,9 @@ export default function GameClient() {
     const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
 
     const [buildMode, setBuildMode] = useState<BuildingTypeId | null>(null);
+    const [buildMenuOpen, setBuildMenuOpen] = useState<boolean>(false);
     const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [buildingModalOpen, setBuildingModalOpen] = useState(false);
     const [missingModalOpen, setMissingModalOpen] = useState(false);
     const [missingResources, setMissingResources] = useState<Record<string, { need: number; have: number }>>({});
@@ -401,8 +646,21 @@ export default function GameClient() {
     const handleSelectBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
-        setBuildMode(prev => (prev === type ? null : type));
+        setBuildMode(type);
+        setBuildMenuOpen(false);
     };
+
+    // Close build menu and cancel build on Escape
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.code === "Escape") {
+                setBuildMenuOpen(false);
+                setBuildMode(null);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
 
     const handleAssignHome = (villagerId: string, buildingId: string | null) => {
         setSt(prev => {
@@ -552,6 +810,7 @@ export default function GameClient() {
                         cameraSaveTimeout.current = setTimeout(() => saveCamera(cam), 400);
                     }}
                     onFpsUpdate={setFps}
+                    onDragActive={(active) => setIsDragging(active)}
                 />
             </div>
 
@@ -637,15 +896,43 @@ export default function GameClient() {
                     onClose={() => setAssignVillagerOpen(false)}
                     villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
                     assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
-                    onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
-                    onRemove={vid => handleAssignWork(vid, null)}
+                    onAssign={(vid: string) => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
+                    onRemove={(vid: string) => handleAssignWork(vid, null)}
                 />
-                {/* Villager menu removed */}
+                <div style={{ position: "fixed", left: "50%", bottom: "8%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 40, width: "80vw" }}>
+                    <div
+                            aria-hidden={!buildMenuOpen || !!buildMode || isDragging}
+                            style={{
+                                pointerEvents: buildMenuOpen && !isDragging && !buildMode ? "auto" : "none",
+                                display: "flex",
+                                justifyContent: "center",
+                                transition: "opacity .18s ease",
+                                opacity: buildMenuOpen ? 1 : 0
+                            }}
+                        >
+                        <BuildBar
+                            sections={BUILD_SECTIONS}
+                            onSelect={(t?: string) => t && handleSelectBuild(t as BuildingTypeId)}
+                            isSelectable={(t) => Boolean(t) && BUILDABLE_TYPE_SET.has(t as BuildingTypeId) && !isTutorialBuildLocked(t as BuildingTypeId, st.quests)}
+                            open={buildMenuOpen}
+                        />
+                    </div>
+                </div>
+
                 <BottomHud
                     st={st}
                     setSt={setSt}
                     buildMode={buildMode}
-                    onToggleBuildMenu={() => setBuildMode(null)}
+                    buildMenuOpen={buildMenuOpen}
+                    onToggleBuildMenu={() => setBuildMenuOpen(prev => {
+                        const next = !prev;
+                        if (!next) setBuildMode(null);
+                        return next;
+                    })}
+                    onCloseBuildMenu={() => {
+                        setBuildMenuOpen(false);
+                        setBuildMode(null);
+                    }}
                     /* villager menu removed */
                     onCancelBuild={() => setBuildMode(null)}
                     villagerCount={aliveVillagers.length}
@@ -1145,12 +1432,7 @@ function BuildingModal({
     return (
         <ModalContainer
             onClose={onClose}
-            title={
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {meta?.title ?? building.type}
-                    <Badge label={`Lvl ${building.level}`} tone="muted" />
-                </span>
-            }
+            title={<span>{meta?.title ?? "Gebäude"}</span>}
             headerAction={
                 <button
                     type="button"
@@ -1353,6 +1635,8 @@ function BottomHud({
     setSt,
     buildMode,
     onToggleBuildMenu,
+    buildMenuOpen,
+    onCloseBuildMenu,
     villagerMenuOpen,
     onToggleVillagerMenu,
     onCancelBuild,
@@ -1364,6 +1648,8 @@ function BottomHud({
     setSt: React.Dispatch<React.SetStateAction<GameState>>;
     buildMode: BuildingTypeId | null;
     onToggleBuildMenu: () => void;
+    buildMenuOpen?: boolean;
+    onCloseBuildMenu?: () => void;
     villagerMenuOpen?: boolean;
     onToggleVillagerMenu?: () => void;
     onCancelBuild: () => void;
@@ -1378,20 +1664,27 @@ function BottomHud({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                padding: "10px 14px",
+                padding: "12px 14px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 pointerEvents: "none",
                 gap: 12,
-                background: THEME.overlayGradient
+                background: "transparent",
+                zIndex: 80
             }}
         >
-                <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "15px" }}>
-                <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
-                <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
-                <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
-            </div>
+                <div style={{ width: "17.5%", height: "160px", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
+                    <div style={{ width: "min(920px,92%)", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8, background: GLASS_STRONG, border: `1px solid ${THEME.panelBorder}`, borderRadius: 18, padding: "10px 14px", boxShadow: "0 -10px 30px rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}>
+                        <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
+                    <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
+                    <div style={{ position: "relative", display: "inline-block" }}>
+                        <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
+                    </div>
+                    <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
+                        </div>
+                    </div>
+                </div>
         </div>
     );
 }
