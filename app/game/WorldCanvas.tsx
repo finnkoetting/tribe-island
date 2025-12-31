@@ -481,6 +481,8 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             berryBushTexture,
             mushroomTextures,
             campfireTexture,
+            campfireLvl2Texture,
+            campfireLvl3Texture,
             collectorTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
@@ -1136,6 +1138,8 @@ function drawBuildings(
     berryBushTexture: ImageBitmap | null,
     mushroomTextures: ImageBitmap[] | null,
     campfireTexture: ImageBitmap | null,
+    campfireLvl2Texture: ImageBitmap | null,
+    campfireLvl3Texture: ImageBitmap | null,
     collectorTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);

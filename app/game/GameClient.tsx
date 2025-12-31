@@ -23,8 +23,8 @@ const GLASS_STRONG = THEME.glassStrong;
 const CARD_BG = THEME.cardBg;
 const MUTED_BG = THEME.mutedBg;
 const GRADIENT_EDGE = THEME.gradientEdge;
-const ACCENT_BUTTON = THEME.accentButton;
-const SECONDARY_BUTTON = THEME.secondaryButton;
+const ACCENT_BUTTON = "linear-gradient(135deg, #ffd9a3, #ffb38a)";
+const SECONDARY_BUTTON = THEME.cardBg;
 const PANEL_BORDER = `1px solid ${THEME.panelBorder}`;
 const CHIP_BORDER = `1px solid ${THEME.chipBorder}`;
 const CARD_MIN_HEIGHT = 210;
@@ -36,7 +36,7 @@ type BuildItem = {
     effect: string;
     upgrade: string;
     status: "available" | "locked" | "planned";
-    type?: BuildingTypeId;
+    type?: string | BuildingTypeId;
     cost?: string;
 };
 
@@ -497,7 +497,7 @@ const BUILD_META: Record<BuildingTypeId, { title: string; cost: string; size: st
 );
 
 
-const RES_ORDER: Array<{ id: keyof GameState["inventory"]; label: string; Icon: FC; color: string }> = [
+const RES_ORDER: Array<{ id: string; label: string; Icon: FC; color: string }> = [
     { id: "wood", label: "Holz", Icon: WoodIcon, color: "#d4a373" },
     { id: "planks", label: "Bretter", Icon: WoodIcon, color: "#c8a46b" },
     { id: "berries", label: "Beeren", Icon: BerriesIcon, color: "#b85acb" },
@@ -896,10 +896,10 @@ export default function GameClient() {
                     onClose={() => setAssignVillagerOpen(false)}
                     villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
                     assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
-                    onAssign={vid => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
-                    onRemove={vid => handleAssignWork(vid, null)}
+                    onAssign={(vid: string) => handleAssignWork(vid, st.selection.kind === "building" ? st.selection.id : null)}
+                    onRemove={(vid: string) => handleAssignWork(vid, null)}
                 />
-                <div style={{ position: "fixed", left: "50%", bottom: "5%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 40, width: "80vw" }}>
+                <div style={{ position: "fixed", left: "50%", bottom: "8%", transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 40, width: "80vw" }}>
                     <div
                             aria-hidden={!buildMenuOpen || !!buildMode || isDragging}
                             style={{
@@ -912,7 +912,7 @@ export default function GameClient() {
                         >
                         <BuildBar
                             sections={BUILD_SECTIONS}
-                            onSelect={handleSelectBuild}
+                            onSelect={(t?: string) => t && handleSelectBuild(t as BuildingTypeId)}
                             isSelectable={(t) => Boolean(t) && BUILDABLE_TYPE_SET.has(t as BuildingTypeId) && !isTutorialBuildLocked(t as BuildingTypeId, st.quests)}
                             open={buildMenuOpen}
                         />
@@ -1664,25 +1664,27 @@ function BottomHud({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                padding: "10px 14px",
+                padding: "12px 14px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 pointerEvents: "none",
                 gap: 12,
-                background: THEME.overlayGradient,
-                zIndex: 60
+                background: "transparent",
+                zIndex: 80
             }}
         >
-                <div style={{ width: "100%", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
-                <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "15px" }}>
+                <div style={{ width: "17.5%", height: "160px", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8 }}>
+                    <div style={{ width: "min(920px,92%)", display: "flex", justifyContent: "center", pointerEvents: "auto", marginBottom: 8, background: GLASS_STRONG, border: `1px solid ${THEME.panelBorder}`, borderRadius: 18, padding: "10px 14px", boxShadow: "0 -10px 30px rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}>
+                        <div style={{ display: "flex", gap: 20, pointerEvents: "auto", alignItems: "center", justifyContent: "center", marginBottom: "6px" }}>
                     <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
                     <div style={{ position: "relative", display: "inline-block" }}>
                         <LargeBuildButton active={!!buildMode} onClick={() => { onCloseBuildingModal(); onToggleBuildMenu(); }} />
                     </div>
                     <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
+                        </div>
+                    </div>
                 </div>
-            </div>
         </div>
     );
 }
