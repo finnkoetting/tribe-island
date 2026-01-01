@@ -9,6 +9,7 @@ type HudButtonProps = {
     icon: ReactNode;
     active?: boolean;
     large?: boolean;
+    shortcut?: string;
     onClick?: () => void;
 };
 
@@ -16,13 +17,17 @@ export function BottomHud({
     buildMode,
     onToggleBuildMenu,
     onToggleVillagerMenu,
+    onToggleInventory,
     villagerMenuOpen,
+    inventoryOpen,
     onCloseBuildingModal
 }: {
     buildMode: BuildingTypeId | null;
     onToggleBuildMenu: () => void;
     onToggleVillagerMenu?: () => void;
+    onToggleInventory?: () => void;
     villagerMenuOpen?: boolean;
+    inventoryOpen?: boolean;
     onCloseBuildingModal: () => void;
 }) {
     return (
@@ -32,7 +37,7 @@ export function BottomHud({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                padding: "0 18px 18px",
+                padding: "0 18px 20px",
                 display: "flex",
                 justifyContent: "center",
                 pointerEvents: "none",
@@ -48,7 +53,8 @@ export function BottomHud({
                     justifyContent: "center",
                     alignItems: "center",
                     gap: 14,
-                    padding: "6px 0"
+                    padding: "10px 12px",
+                    borderRadius: 18
                 }}
             >
                 <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
@@ -59,19 +65,23 @@ export function BottomHud({
                         onToggleBuildMenu();
                     }}
                 />
-                <InventoryButton active={false} onClick={() => { /* inventory toggle not implemented */ }} />
+                <InventoryButton active={!!inventoryOpen} onClick={() => onToggleInventory?.()} />
             </div>
         </div>
     );
 }
 
-function HudButton({ label, icon, active = false, large = false, onClick }: HudButtonProps) {
+function HudButton({ label, icon, shortcut, active = false, large = false, onClick }: HudButtonProps) {
     const [hover, setHover] = useState(false);
-    const width = large ? 132 : 112;
-    const height = large ? 108 : 94;
-    const radius = large ? 20 : 16;
-    const border = active ? `2px solid ${THEME.accent}` : "1px solid rgba(255,255,255,0.28)";
-    const shadow = active ? `${THEME.accentGlow}, inset 0 1px 0 rgba(255,255,255,0.25)` : "inset 0 1px 0 rgba(255,255,255,0.22)";
+    const height = large ? 144 : 132;
+    const width = height;
+    const radius = large ? 20 : 18;
+    const border = active ? `2px solid ${THEME.accent}` : "1px solid rgba(255,255,255,0.26)";
+    const shadowBase = "0 10px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.22)";
+    const shadow = active ? `${THEME.accentGlow}, ${shadowBase}` : shadowBase;
+    const background = hover
+        ? "linear-gradient(180deg, #ffe2aa 0%, #efc174 55%, #c98544 100%)"
+        : "linear-gradient(180deg, #f7d7a0 0%, #e7b46e 58%, #c98544 100%)";
 
     return (
         <button
@@ -85,40 +95,59 @@ function HudButton({ label, icon, active = false, large = false, onClick }: HudB
                 height,
                 borderRadius: radius,
                 border,
-                background: "linear-gradient(180deg, #f7d7a0 0%, #e7b46e 58%, #c98544 100%)",
+                background,
+                backdropFilter: "blur(6px)",
                 cursor: "pointer",
                 boxShadow: shadow,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "column",
-                fontSize: 28,
-                gap: 8,
-                transform: hover ? "translateY(-4px)" : "translateY(0)",
+                fontSize: 32,
+                gap: 4,
+                transform: hover ? "translateY(-3px)" : "translateY(0)",
                 transition: "transform .16s ease, box-shadow .16s ease, border .16s ease, background .16s ease",
                 color: "#2f1b0c",
                 fontWeight: 900,
                 pointerEvents: "auto",
-                outline: "none"
+                outline: "none",
+                textShadow: "0 1px 0 rgba(255,255,255,0.48)"
             }}
         >
             <span
                 aria-hidden="true"
                 style={{
-                    width: large ? 60 : 52,
-                    height: large ? 60 : 52,
-                    borderRadius: 14,
+                    width: large ? 76 : 68,
+                    height: large ? 76 : 68,
+                    borderRadius: 15,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08))",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)",
+                    background: "transparent",
+                    boxShadow: "none",
                     color: "#2f1b0c"
                 }}
             >
                 {icon}
             </span>
-            <span style={{ fontSize: 12, letterSpacing: 0.2, textShadow: "0 1px 0 rgba(255,255,255,0.55)" }}>{label}</span>
+            <span
+                style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0,
+                    padding: "3px 6px 2px",
+                    borderRadius: 12,
+                    background: "transparent",
+                    border: "none",
+                    boxShadow: "none",
+                    color: "#2f1b0c",
+                    textShadow: "0 1px 0 rgba(255,255,255,0.48)"
+                }}
+            >
+                <span style={{ fontSize: 13, letterSpacing: 0.2, lineHeight: 1.1 }}>{label}</span>
+                {shortcut && <span style={{ fontSize: 11, letterSpacing: 0.4, opacity: 0.78, color: "#4c4138" }}>{shortcut}</span>}
+            </span>
         </button>
     );
 }
@@ -127,6 +156,7 @@ function VillagerButton({ active, onClick }: { active: boolean; onClick?: () => 
     return (
         <HudButton
             label="Bewohner"
+            shortcut="V"
             active={active}
             onClick={onClick}
             icon={
@@ -139,10 +169,11 @@ function VillagerButton({ active, onClick }: { active: boolean; onClick?: () => 
     );
 }
 
-function InventoryButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+function InventoryButton({ active, onClick }: { active: boolean; onClick?: () => void }) {
     return (
         <HudButton
             label="Inventar"
+            shortcut="Tab"
             active={active}
             onClick={onClick}
             icon={
@@ -159,6 +190,7 @@ function LargeBuildButton({ active, onClick }: { active: boolean; onClick: () =>
     return (
         <HudButton
             label="Bauen"
+            shortcut="B"
             large
             active={active}
             onClick={onClick}

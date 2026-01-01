@@ -55,6 +55,8 @@ export default function GameClient() {
     const [missingModalOpen, setMissingModalOpen] = useState(false);
     const [missingResources, setMissingResources] = useState<Record<string, { need: number; have: number }>>({});
     const [showProducers, setShowProducers] = useState<Record<string, boolean>>({});
+    const [inventoryOpen, setInventoryOpen] = useState(false);
+    const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
 
     function resetWithSeed(nextSeed: number) {
         saveSeed(nextSeed);
@@ -96,6 +98,33 @@ export default function GameClient() {
             if (e.code === "Escape") {
                 setBuildMenuOpen(false);
                 setBuildMode(null);
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, []);
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            if (key === "b") {
+                e.preventDefault();
+                setBuildingModalOpen(false);
+                setBuildMenuOpen(prev => {
+                    const next = !prev;
+                    if (!next) setBuildMode(null);
+                    return next;
+                });
+                return;
+            }
+            if (key === "v") {
+                e.preventDefault();
+                setVillagerMenuOpen(prev => !prev);
+                return;
+            }
+            if (e.key === "Tab") {
+                e.preventDefault();
+                setInventoryOpen(prev => !prev);
             }
         };
         window.addEventListener("keydown", onKey);
@@ -324,8 +353,10 @@ export default function GameClient() {
                         if (!next) setBuildMode(null);
                         return next;
                     })}
-                    villagerMenuOpen={false}
-                    onToggleVillagerMenu={() => { /* not implemented */ }}
+                    villagerMenuOpen={villagerMenuOpen}
+                    onToggleVillagerMenu={() => setVillagerMenuOpen(prev => !prev)}
+                    inventoryOpen={inventoryOpen}
+                    onToggleInventory={() => setInventoryOpen(prev => !prev)}
                     onCloseBuildingModal={() => setBuildingModalOpen(false)}
                 />
             </div>
