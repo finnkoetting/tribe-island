@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { FC } from "react";
+import Image from "next/image";
 import styles from "./BuildBar.module.css";
 import { UI_THEME as THEME } from "../../theme";
 import { BUILDING_COSTS } from "../../../game/domains/buildings/model/buildingCosts";
@@ -115,19 +116,12 @@ const BuildBar: FC<{ sections: UiBuildSection[]; onSelect?: (type?: string) => v
                             style={cardStyle}
                         >
                             <div className={styles.thumbWrap}>
-                                <img
+                                <SafeImage
                                     src={src}
                                     alt={it.title}
                                     className={styles.thumb}
-                                    onError={(e) => {
-                                        const img = e.currentTarget as HTMLImageElement;
-                                        const orig = img.getAttribute("src") || "";
-                                        if (orig.endsWith(".png")) {
-                                            img.src = orig.replace(/\.png$/, ".svg");
-                                        } else {
-                                            img.src = `/assets/ui/placeholders/building.svg`;
-                                        }
-                                    }}
+                                    width={64}
+                                    height={64}
                                 />
                             </div>
 
@@ -186,5 +180,24 @@ function WoodIconSmall() {
             <path d="M6 8.5h5" stroke="#d9b28c" strokeWidth="0.9" strokeLinecap="round" />
             <path d="M7 11h3.5" stroke="#d9b28c" strokeWidth="0.9" strokeLinecap="round" />
         </svg>
+    );
+}
+
+function SafeImage({ src: initialSrc, alt, className, width, height }: { src: string; alt?: string; className?: string; width?: number; height?: number }) {
+    const fallback = '/assets/ui/placeholders/building.png';
+    const [src, setSrc] = useState(initialSrc);
+
+    return (
+        <Image
+            src={src}
+            alt={alt ?? ''}
+            className={className}
+            width={width}
+            height={height}
+            onError={() => {
+                if (src !== fallback) setSrc(fallback);
+            }}
+            unoptimized
+        />
     );
 }

@@ -12,9 +12,7 @@ import LoadingOverlay from "./LoadingOverlay";
 import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal";
 import BuildBar from "../../src/ui/game/hud/BuildBar";
 import { UI_THEME as THEME } from "../../src/ui/theme";
-import { ModalContainer } from "../../src/ui/components/ModalContainer";
-import { BottomHud, BuildingModal, TopRightResources, TutorialPanel, RES_ORDER } from "./ui";
-import { MODAL_STYLE } from "../../src/ui/theme/modalStyleGuide";
+import { BottomHud, TopRightResources, TutorialPanel } from "./ui";
 import {
     BUILDABLE_TYPE_SET,
     BUILD_SECTIONS,
@@ -63,10 +61,7 @@ export default function GameClient() {
     const [buildMenuOpen, setBuildMenuOpen] = useState(false);
     const [assignVillagerOpen, setAssignVillagerOpen] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [buildingModalOpen, setBuildingModalOpen] = useState(false);
-    const [missingModalOpen, setMissingModalOpen] = useState(false);
-    const [missingResources, setMissingResources] = useState<Record<string, { need: number; have: number }>>({});
-    const [showProducers, setShowProducers] = useState<Record<string, boolean>>({});
+    
     const [inventoryOpen, setInventoryOpen] = useState(false);
     const [villagerMenuOpen, setVillagerMenuOpen] = useState(false);
 
@@ -77,7 +72,6 @@ export default function GameClient() {
         lastSavedRef.current = 0;
         lastRef.current = null;
         setBuildMode(null);
-        setBuildingModalOpen(false);
         setSeed(nextSeed);
         setSt(fresh);
     }
@@ -182,6 +176,9 @@ export default function GameClient() {
                     "buildings/campfire/lvl1",
                     "buildings/campfire/lvl2",
                     "buildings/campfire/lvl3",
+                    "buildings/sleep_hut/lvl1",
+                    "buildings/townhall/lvl1",
+                    "buildings/watchtower/lvl1",
                     "objects/berrybush",
                     "objects/mushroom/1",
                     "objects/mushroom/2",
@@ -238,7 +235,6 @@ export default function GameClient() {
             const key = e.key.toLowerCase();
             if (key === "b") {
                 e.preventDefault();
-                setBuildingModalOpen(false);
                 setBuildMenuOpen(prev => {
                     const next = !prev;
                     if (!next) setBuildMode(null);
@@ -291,12 +287,9 @@ export default function GameClient() {
             if (!prev) return prev;
             const building = findBuildingAt(prev, pos);
             let next: GameState = { ...(prev as GameState), selection: { kind: "tile", pos } } as GameState;
-            setBuildingModalOpen(false);
 
             if (building) {
                 next = { ...next, selection: { kind: "building", id: building.id } };
-                const nonModalTypes: BuildingTypeId[] = ["rock", "tree", "berry_bush", "mushroom", "road"];
-                if (!nonModalTypes.includes(building.type)) setBuildingModalOpen(true);
             }
 
             if (buildMode && BUILDABLE_TYPE_SET.has(buildMode)) {
@@ -361,6 +354,32 @@ return (
                     st={st}
                     buildMode={buildMode}
                     onTileClick={handleTileClick}
+                        onOpenAssignVillager={() => setAssignVillagerOpen(true)}
+                        onStartTask={(buildingId, taskId) => {
+                            setSt(prev => {
+                                if (!prev) return prev;
+                                const next = engine.commands.startBuildingTask(prev, buildingId, taskId);
+                                queueSave(next);
+                                return next;
+                            });
+                        }}
+                        onAssignVillager={(vid, buildingId) => {
+                            setSt(prev => {
+                                if (!prev) return prev;
+                                const next = engine.commands.assignVillagerToBuilding(prev, vid, buildingId);
+                                queueSave(next);
+                                return next;
+                            });
+                        }}
+                        onRemoveAssignedVillager={(vid, buildingId) => {
+                            setSt(prev => {
+                                if (!prev) return prev;
+                                const next = engine.commands.assignVillagerToBuilding(prev, vid, null);
+                                queueSave(next);
+                                return next;
+                            });
+                        }}
+                        onUpgrade={(buildingId) => handleUpgrade(buildingId)}
                     onCancelBuild={() => setBuildMode(null)}
                     onCollectBuilding={handleCollect}
                     initialCamera={initialCamera ?? undefined}
@@ -378,76 +397,7 @@ return (
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} villagers={st.villagers} />
                 <TopRightResources st={st} />
 
-                <BuildingModal
-                    open={buildingModalOpen && st.selection.kind === "building" && Boolean(st.buildings[st.selection.id])}
-                    building={st.selection.kind === "building" ? st.buildings[st.selection.id] : null}
-                    st={st}
-                    onClose={() => setBuildingModalOpen(false)}
-                    onOpenAssignVillager={() => setAssignVillagerOpen(true)}
-                    onUpgrade={handleUpgrade}
-                    onStartTask={(buildingId, taskId) => {
-                        setSt(prev => {
-                            if (!prev) return prev;
-                            const next = engine.commands.startBuildingTask(prev, buildingId, taskId);
-                            queueSave(next);
-                            return next;
-                        });
-                    }}
-                    onShowMissing={missing => {
-                        setMissingResources(missing);
-                        setMissingModalOpen(true);
-                    }}
-                />
-
-                {missingModalOpen && (
-                    <ModalContainer onClose={() => setMissingModalOpen(false)} title={<span>Fehlende Ressourcen</span>}>
-                        <div style={{ display: "grid", gap: 10 }}>
-                            <div>Dir fehlen die folgenden Ressourcen für dieses Upgrade/Auftrag:</div>
-                            <div style={{ display: "grid", gap: 6 }}>
-                                {Object.entries(missingResources).map(([res, v]) => {
-                                    const label = RES_ORDER.find(r => r.id === res)?.label ?? prettifyResource(res);
-                                    const producers = resourceProducers[res as ResourceId] ?? [];
-                                    const visible = !!showProducers[res];
-                                    return (
-                                        <div key={res} style={{ padding: 8, background: MODAL_STYLE.card.background, borderRadius: 8, border: MODAL_STYLE.card.border }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <div style={{ fontWeight: 800 }}>{label}</div>
-                                                <div style={{ opacity: 0.9 }}>{v.need} benötigt  vorhanden {v.have}</div>
-                                            </div>
-                                            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                                                <button
-                                                    onClick={() => setShowProducers(s => ({ ...s, [res]: !s[res] }))}
-                                                    style={{ ...MODAL_STYLE.button, fontSize: 13, padding: "8px 12px" }}
-                                                >
-                                                    Ressourcen beschaffen
-                                                </button>
-                                            </div>
-                                            {visible && (
-                                                <div style={{ marginTop: 8, padding: 8, background: "rgba(0,0,0,0.12)", borderRadius: 8 }}>
-                                                    <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 700 }}>Geeignete Orte / Gebäude:</div>
-                                                    {producers.length ? (
-                                                        <div style={{ display: "grid", gap: 6 }}>
-                                                            {producers.map(p => (
-                                                                <div key={p} style={{ fontSize: 13 }}>
-                                                                    {producerTitle(p)}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div style={{ fontSize: 13, opacity: 0.85 }}>Keine bekannten Gebäude; suche in der Welt nach Rohvorkommen.</div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-                                <button style={{ ...MODAL_STYLE.button }} onClick={() => setMissingModalOpen(false)}>Schließen</button>
-                            </div>
-                        </div>
-                    </ModalContainer>
-                )}
+                {/* Building modal removed */}
 
                 <AssignVillagerModal
                     open={assignVillagerOpen}
@@ -499,7 +449,6 @@ return (
                     onToggleVillagerMenu={() => setVillagerMenuOpen(prev => !prev)}
                     inventoryOpen={inventoryOpen}
                     onToggleInventory={() => setInventoryOpen(prev => !prev)}
-                    onCloseBuildingModal={() => setBuildingModalOpen(false)}
                 />
             </div>
         )}

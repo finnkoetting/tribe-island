@@ -119,15 +119,15 @@ export const UI_THEME: UiTheme = {
     secondaryButton: THEME.colors.secondaryButton,
 };
 export const BUILDING_COLORS: Partial<Record<string, string>> = {
-    gather_hut: "transparent",
-    campfire: "#e0863f",
-    storage: "#6a7bcf",
-    watchpost: "#c45c7b",
-    sawmill: "#c59a6c",
-    townhall: "#3a5f8f",
-    road: "#8d7355",
-    rock: "#7b6858",
-    tree: "#3a6f3d",
-    berry_bush: "#2f7f3a",
-    mushroom: "#b0514b"
+    gather_hut: "#ffffff",
+    campfire: "#ffffff",
+    storage: "#ffffff",
+    watchpost: "#ffffff",
+    sawmill: "#ffffff",
+    townhall: "#ffffff",
+    road: "#ffffff",
+    rock: "#ffffff",
+    tree: "#ffffff",
+    berry_bush: "#ffffff",
+    mushroom: "#ffffff"
 };

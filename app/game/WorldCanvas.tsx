@@ -84,13 +84,18 @@ export type WorldCanvasProps = {
     onHover?: (pos: Vec2 | null) => void;
     onCancelBuild?: () => void;
     onCollectBuilding?: (id: string) => void;
+    onOpenAssignVillager?: () => void;
+    onStartTask?: (buildingId: string, taskId: string) => void;
+    onUpgrade?: (buildingId: string) => void;
+    onAssignVillager?: (villagerId: string, buildingId: string) => void;
+    onRemoveAssignedVillager?: (villagerId: string, buildingId: string) => void;
     onFpsUpdate?: (fps: number) => void;
     initialCamera?: Camera;
     onCameraChange?: (cam: Camera) => void;
     onDragActive?: (active: boolean) => void;
 };
 
-export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onFpsUpdate, initialCamera, onCameraChange, onDragActive }: WorldCanvasProps) {
+export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCancelBuild, onCollectBuilding, onOpenAssignVillager, onStartTask, onUpgrade, onAssignVillager, onRemoveAssignedVillager, onFpsUpdate, initialCamera, onCameraChange, onDragActive }: WorldCanvasProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const spaceDownRef = useRef(false);
@@ -121,12 +126,21 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const [campfireLvl2Texture, setCampfireLvl2Texture] = useState<ImageBitmap | null>(null);
     const [campfireLvl3Texture, setCampfireLvl3Texture] = useState<ImageBitmap | null>(null);
     const [collectorTexture, setCollectorTexture] = useState<ImageBitmap | null>(null);
+    const [townhallTexture, setTownhallTexture] = useState<ImageBitmap | null>(null);
+    const [watchtowerTexture, setWatchtowerTexture] = useState<ImageBitmap | null>(null);
+    const [sleepHutTexture, setSleepHutTexture] = useState<ImageBitmap | null>(null);
     const fpsFrames = useRef(0);
     const fpsLast = useRef(0);
+    const [assignMode, setAssignMode] = useState<boolean>(false);
+    const [hoverUiId, setHoverUiId] = useState<string | null>(null);
 
     useEffect(() => {
         if (typeof performance !== "undefined") fpsLast.current = performance.now();
     }, []);
+
+    useEffect(() => {
+        setAssignMode(false);
+    }, [st.selection]);
 
     const angleDeg = 0;
 
@@ -330,6 +344,42 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         };
     }, []);
 
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("buildings/townhall/lvl1")
+            .then((bmp) => {
+                if (!cancelled && bmp) setTownhallTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load townhall texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("buildings/watchtower/lvl1")
+            .then((bmp) => {
+                if (!cancelled && bmp) setWatchtowerTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load watchtower texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        getTextureBitmap("buildings/sleep_hut/lvl1")
+            .then((bmp) => {
+                if (!cancelled && bmp) setSleepHutTexture(bmp);
+            })
+            .catch((err) => console.warn("Failed to load sleep_hut texture", err));
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     const minZoomForViewport = useCallback(
         (vw: number, vh: number) => Math.max(MIN_ZOOM, Math.max(vw / worldPx.w, vh / worldPx.h) * 1.08),
         [worldPx.w, worldPx.h]
@@ -481,7 +531,10 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
             campfireTexture,
             campfireLvl2Texture,
             campfireLvl3Texture,
-            collectorTexture
+            collectorTexture,
+            sleepHutTexture,
+            townhallTexture,
+            watchtowerTexture
         );
         if (showAnimals) drawAnimals(ctx, meadowAnimals, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, cowTexture, sheepTexture);
         if (showAnimals) drawGameAnimals(ctx, st, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA, dogTexture);
@@ -521,6 +574,9 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         campfireLvl2Texture,
         campfireLvl3Texture,
         collectorTexture,
+        sleepHutTexture,
+        townhallTexture,
+        watchtowerTexture,
         cowTexture,
         sheepTexture,
         dogTexture,
@@ -845,6 +901,272 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                         </div>
                     );
                 })}
+
+                {/* Building side menu for selected building */}
+                {st.selection.kind === "building" && st.buildings[st.selection.id] && (() => {
+                    const b = st.buildings[st.selection.id];
+                    const size = getBuildingSize(b.type);
+                    const centerX = b.pos.x + size.w * 0.5;
+                    const centerY = b.pos.y + size.h * 0.5;
+                    const { sx, sy } = tileToScreen(centerX, centerY, worldPx.originX, worldPx.originY, worldPx.cosA, worldPx.sinA);
+                    const px = ((sx + HALF_W) - cam.x) * cam.z;
+                    const py = ((sy) - cam.y) * cam.z;
+
+                    const uiScale = Math.max(0.7, Math.min(1.2, cam.z));
+                    const panelWidth = 320 * uiScale;
+                    const desiredLeft = px + 100 * uiScale; // push panel further right of the building
+                    const clampedLeft = Math.max(16, Math.min((viewSize.w || 0) - panelWidth - 16, desiredLeft));
+                    const clampedTop = Math.max(24, Math.min((viewSize.h || 0) - 24, py)) - 20;
+
+                    // derive tasks (simple subset matching previous modal behavior)
+                    const tasks: Array<{ id: string; label: string }> = (() => {
+                        if (b.type === "gather_hut") {
+                            return [
+                                { id: "pick_mushrooms", label: "Pilze sammeln" },
+                                { id: "pick_berries", label: "Beeren sammeln" },
+                                { id: "fruit_salad", label: "Fruchtsalat" }
+                            ];
+                        }
+                        if (b.type === "sawmill") return [{ id: "produce", label: "Holz verarbeiten" }];
+                        if (b.type === "campfire") return [{ id: "day_watch", label: "Tageswache" }];
+                        return [];
+                    })();
+
+                    const availableVillagers = Object.values(st.villagers)
+                        .filter(v => v && v.state === "alive" && !b.assignedVillagerIds.includes(v.id));
+                    const assignedVillagers = b.assignedVillagerIds
+                        .map(id => st.villagers[id])
+                        .filter(Boolean) as Array<typeof st.villagers[string]>;
+
+                    return (
+                        <div
+                            key={"building-menu-" + b.id}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                position: "absolute",
+                                left: clampedLeft,
+                                top: clampedTop,
+                                transform: "translateY(-50%)",
+                                pointerEvents: "auto",
+                                width: panelWidth,
+                                maxWidth: "36vw",
+                                background: "linear-gradient(180deg, #f7d7a0 0%, #e7b46e 58%, #c98544 100%)",
+                                borderRadius: 13,
+                                padding: "12px 14px",
+                                boxShadow: "0 12px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22)",
+                                backdropFilter: "blur(8px)",
+                                color: "#3d2410",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 10,
+                                zIndex: 90
+                            }}
+                        >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                                <div style={{ fontWeight: 900, letterSpacing: 0.2, fontSize: 15, color: "#2a1608", textShadow: "0 1px 0 rgba(255,255,255,0.4)" }}>
+                                    {b.type.replace(/_/g, " ")}
+                                </div>
+                                {b.level ? (
+                                    <span style={{ fontWeight: 900, fontVariantNumeric: "tabular-nums", color: "#3d2410", background: "rgba(239, 211, 149, 0.82)", padding: "4px 10px", borderRadius: 11, border: "1px solid rgba(239, 211, 149, 0.9)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35)", fontSize: 12 }}>
+                                        Lvl {b.level}
+                                    </span>
+                                ) : null}
+                            </div>
+
+                            {!assignMode && (
+                                <>
+                                    {assignedVillagers.length ? (
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                            <div style={{ fontSize: 12, fontWeight: 800, color: "#2a1608" }}>Zugewiesen:</div>
+                                            <div style={{ display: "flex", gap: 6 }}>
+                                                {assignedVillagers.map(v => (
+                                                    <div key={v.id} style={{ padding: "6px 8px", borderRadius: 10, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(0,0,0,0.08)", fontSize: 13, color: "#2f1b0c", fontWeight: 800 }}>
+                                                        {v.name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                    <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                                        {tasks.length ? tasks.map(t => {
+                                            const id = `task-${t.id}`;
+                                            const hovered = hoverUiId === id;
+                                            return (
+                                                <button
+                                                    key={t.id}
+                                                    onClick={() => onStartTask?.(b.id, t.id)}
+                                                    onMouseEnter={() => setHoverUiId(id)}
+                                                    onMouseLeave={() => setHoverUiId(null)}
+                                                    style={{
+                                                        padding: "10px 12px",
+                                                        borderRadius: 13,
+                                                        cursor: "pointer",
+                                                        textAlign: "left",
+                                                        pointerEvents: "auto",
+                                                        border: "1px solid rgba(255,255,255,0.28)",
+                                                        boxShadow: hovered ? "0 10px 26px rgba(0,0,0,0.38)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
+                                                        background: hovered ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.16)",
+                                                        color: "#2f1b0c",
+                                                        fontWeight: 800,
+                                                        fontSize: 13,
+                                                        transform: hovered ? "translateY(-3px)" : "none",
+                                                        transition: "box-shadow .18s ease, transform .12s ease, background .12s ease"
+                                                    }}
+                                                >
+                                                    {t.label}
+                                                </button>
+                                            );
+                                        }) : ""}
+                                    </div>
+
+                                    <div style={{ height: 1, background: "rgba(255,255,255,0.18)", marginTop: 4 }} />
+
+                                    <div style={{ marginTop: 4, display: "flex", justifyContent: "center", gap: 10 }}>
+                                        <button
+                                            onClick={() => setAssignMode(true)}
+                                            onMouseEnter={() => setHoverUiId("assign-btn")}
+                                            onMouseLeave={() => setHoverUiId(null)}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                borderRadius: 12,
+                                                fontWeight: 900,
+                                                cursor: "pointer",
+                                                pointerEvents: "auto",
+                                                background: "linear-gradient(180deg, #ffeaa7 0%, #ffc857 45%, #f4a63a 100%)",
+                                                border: "2px solid rgba(255, 207, 132, 0.88)",
+                                                boxShadow: hoverUiId === "assign-btn" ? "0 18px 44px rgba(0,0,0,0.5)" : "0 12px 40px rgba(0,0,0,0.45), inset 0 2px 0 rgba(255,255,255,0.35)",
+                                                color: "#4a2c11",
+                                                fontSize: 13,
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                gap: 2
+                                            }}
+                                        >
+                                            <span role="img" aria-label="Villager" style={{ fontSize: 18, lineHeight: 1 }}>🧑‍🌾</span>
+                                            <span style={{ fontSize: 11 }}>Zuweisen</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => onUpgrade?.(b.id)}
+                                            onMouseEnter={() => setHoverUiId("upgrade-btn")}
+                                            onMouseLeave={() => setHoverUiId(null)}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                borderRadius: 12,
+                                                fontWeight: 900,
+                                                cursor: "pointer",
+                                                pointerEvents: "auto",
+                                                background: "linear-gradient(180deg, #d7f8ff 0%, #8ed9ff 50%, #4fb2e6 100%)",
+                                                border: "2px solid rgba(255,255,255,0.7)",
+                                                boxShadow: hoverUiId === "upgrade-btn" ? "0 18px 44px rgba(0,0,0,0.45)" : "0 12px 40px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.45)",
+                                                color: "#0b3c59",
+                                                fontSize: 13,
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                gap: 2
+                                            }}
+                                        >
+                                            <span role="img" aria-label="Upgrade" style={{ fontSize: 18, lineHeight: 1 }}>⬆️</span>
+                                            <span style={{ fontSize: 11 }}>Upgrade</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+
+                            {assignMode && (
+                                <div style={{ display: "grid", gap: 10 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div style={{ fontWeight: 900, fontSize: 14, color: "#2a1608" }}>Bewohner zuweisen</div>
+                                        <button
+                                            onClick={() => setAssignMode(false)}
+                                            style={{
+                                                padding: "6px 10px",
+                                                borderRadius: 10,
+                                                border: "1px solid rgba(255,255,255,0.28)",
+                                                background: "rgba(255,255,255,0.16)",
+                                                cursor: "pointer",
+                                                fontWeight: 800,
+                                                color: "#2f1b0c"
+                                            }}
+                                        >
+                                            Zurück
+                                        </button>
+                                    </div>
+
+                                                    {assignedVillagers.length ? (
+                                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(1, minmax(0, 1fr))" }}>
+                                                            {assignedVillagers.map(v => {
+                                                                const id = `assigned-${v.id}`;
+                                                                const hovered = hoverUiId === id;
+                                                                return (
+                                                                    <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 10, background: hovered ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.06)", border: "1px solid rgba(0,0,0,0.06)", transition: "background .12s ease" }}
+                                                                        onMouseEnter={() => setHoverUiId(id)}
+                                                                        onMouseLeave={() => setHoverUiId(null)}
+                                                                    >
+                                                                        <div style={{ fontWeight: 800, color: "#2f1b0c" }}>{v.name} <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>· {v.job}</span></div>
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); onRemoveAssignedVillager?.(v.id, b.id); }}
+                                                                            aria-label={`Entferne ${v.name}`}
+                                                                            onMouseEnter={() => setHoverUiId(`${id}-remove`)}
+                                                                            onMouseLeave={() => setHoverUiId(null)}
+                                                                            style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: hoverUiId === `${id}-remove` ? "rgba(255,0,0,0.12)" : "rgba(0,0,0,0.06)", cursor: "pointer", fontWeight: 800, transition: "background .12s ease" }}
+                                                                        >
+                                                                            ✖
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : null}
+
+                                                    {availableVillagers.length ? (
+                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                                                {availableVillagers.map(v => {
+                                                    const id = `avail-${v.id}`;
+                                                    const hovered = hoverUiId === id;
+                                                    return (
+                                                        <button
+                                                            key={v.id}
+                                                            onClick={() => onAssignVillager?.(v.id, b.id)}
+                                                            onMouseEnter={() => setHoverUiId(id)}
+                                                            onMouseLeave={() => setHoverUiId(null)}
+                                                            style={{
+                                                                padding: "10px 12px",
+                                                                borderRadius: 12,
+                                                                textAlign: "left",
+                                                                cursor: "pointer",
+                                                                border: "1px solid rgba(255,255,255,0.28)",
+                                                                background: hovered ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.16)",
+                                                                boxShadow: hovered ? "0 10px 26px rgba(0,0,0,0.36)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
+                                                                color: "#2f1b0c",
+                                                                fontWeight: 800,
+                                                                display: "grid",
+                                                                gap: 4,
+                                                                transform: hovered ? "translateY(-3px)" : "none",
+                                                                transition: "box-shadow .12s ease, transform .12s ease, background .12s ease"
+                                                            }}
+                                                        >
+                                                            <span>{v.name}</span>
+                                                            <span style={{ fontSize: 12, opacity: 0.8 }}>{v.job}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: 13, opacity: 0.85, color: "#3d2410" }}>Keine freien Bewohner verfügbar.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );
@@ -1143,7 +1465,10 @@ function drawBuildings(
     campfireTexture: ImageBitmap | null,
     campfireLvl2Texture: ImageBitmap | null,
     campfireLvl3Texture: ImageBitmap | null,
-    collectorTexture: ImageBitmap | null
+    collectorTexture: ImageBitmap | null,
+    sleepHutTexture: ImageBitmap | null,
+    townhallTexture: ImageBitmap | null,
+    watchtowerTexture: ImageBitmap | null
 ) {
     const entries = Object.values(st.buildings);
     if (!entries.length) return;
@@ -1163,8 +1488,8 @@ function drawBuildings(
             continue;
         }
 
-            if (b.type === "tree") {
-                drawTreeTile(ctx, b.pos, originX, originY - 12.5, cosA, sinA, treeTextures, b.id);
+        if (b.type === "tree") {
+            drawTreeTile(ctx, b.pos, originX, originY - 12.5, cosA, sinA, treeTextures, b.id);
             continue;
         }
 
@@ -1205,6 +1530,50 @@ function drawBuildings(
                 const centerY = b.pos.y + size.h / 2;
                 const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
                 drawIsoSprite(ctx, collectorTexture, sx + 1, sy + 12, { heightScale: 2.6, widthScale: 1, offsetY: -10 });
+            } else {
+                fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
+            }
+            continue;
+        }
+
+        if (b.type === "sleep_hut") {
+            drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
+
+            if (sleepHutTexture) {
+                const centerX = b.pos.x + size.w / 2;
+                const centerY = b.pos.y + size.h / 2;
+                const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
+                drawIsoSprite(ctx, sleepHutTexture, sx, sy + 6, { heightScale: 2.2, widthScale: 1.05, offsetY: -8 });
+            } else {
+                fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
+            }
+            continue;
+        }
+
+        if (b.type === "townhall") {
+            drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
+
+            const tex = townhallTexture;
+            if (tex) {
+                const centerX = (b.pos.x + size.w / 2) + .3;
+                const centerY = (b.pos.y + size.h / 2) + .3;
+                const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
+                drawIsoSprite(ctx, tex, sx, sy + 6, { heightScale: 2.7, widthScale: 1.05, offsetY: -12 });
+            } else {
+                fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
+            }
+            continue;
+        }
+
+        if (b.type === "watchtower") {
+            drawFootprintShadow(ctx, b, originX, originY, cosA, sinA);
+
+            const tex = watchtowerTexture;
+            if (tex) {
+                const centerX = b.pos.x + size.w / 2;
+                const centerY = b.pos.y + size.h / 2;
+                const { sx, sy } = tileToScreen(centerX, centerY, originX, originY, cosA, sinA);
+                drawIsoSprite(ctx, tex, sx, sy + 2, { heightScale: 3.0, widthScale: 1.15, offsetY: -22 });
             } else {
                 fillBuildingFootprint(ctx, b, color, originX, originY, cosA, sinA);
             }

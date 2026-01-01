@@ -70,7 +70,6 @@ export function BuildingModal({
             const maxTasks = Math.min(baseTasks.length, level + 1);
             return baseTasks.slice(0, maxTasks);
         }
-        if (safeBuilding.type === "townhall") return [{ id: "research", label: "Dorfauftrag: Grund-Jobzuweisung", desc: "Jobs & Aufträge freischalten", duration: 120 }];
         if (safeBuilding.type === "sawmill") return [{ id: "produce", label: "Holz verarbeiten", desc: "+Bretter", duration: 90 }];
         if (safeBuilding.type === "campfire") return [{ id: "day_watch", label: "Tageswache", desc: "-2 Nahrung; +1 Moral (alle)", duration: 60 }];
         return [];

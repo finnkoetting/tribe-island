@@ -20,7 +20,6 @@ export function BottomHud({
     onToggleInventory,
     villagerMenuOpen,
     inventoryOpen,
-    onCloseBuildingModal
 }: {
     buildMode: BuildingTypeId | null;
     onToggleBuildMenu: () => void;
@@ -28,7 +27,6 @@ export function BottomHud({
     onToggleInventory?: () => void;
     villagerMenuOpen?: boolean;
     inventoryOpen?: boolean;
-    onCloseBuildingModal: () => void;
 }) {
     return (
         <div
@@ -58,13 +56,7 @@ export function BottomHud({
                 }}
             >
                 <VillagerButton active={!!villagerMenuOpen} onClick={() => onToggleVillagerMenu?.()} />
-                <LargeBuildButton
-                    active={!!buildMode}
-                    onClick={() => {
-                        onCloseBuildingModal();
-                        onToggleBuildMenu();
-                    }}
-                />
+                <LargeBuildButton active={!!buildMode} onClick={() => onToggleBuildMenu()} />
                 <InventoryButton active={!!inventoryOpen} onClick={() => onToggleInventory?.()} />
             </div>
         </div>
