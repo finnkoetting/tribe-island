@@ -957,18 +957,18 @@ function drawAnimals(
         const cy = sy + HALF_H * 0.6;
 
         if (animal.kind === "cow" && cowTexture) {
-            drawIsoSprite(ctx, cowTexture, sx, sy, { heightScale: 0.85, widthScale: 0.8, offsetY: -1 });
+            drawIsoSprite(ctx, cowTexture, sx, sy, { heightScale: 0.85, widthScale: 1, offsetY: -1 });
             continue;
         }
 
         if (animal.kind === "sheep" && sheepTexture) {
-            drawIsoSprite(ctx, sheepTexture, sx, sy, { heightScale: 0.75, widthScale: 0.8, offsetY: -1 });
+            drawIsoSprite(ctx, sheepTexture, sx, sy, { heightScale: 0.67, widthScale: 0.8, offsetY: -1 });
             continue;
         }
 
         const style = ANIMAL_STYLES[animal.kind];
-        const bodyR = animal.kind === "cow" ? 3.5 : 3;
-        const bodySquish = animal.kind === "cow" ? 0.76 : 0.7;
+        const bodyR = animal.kind === "cow" ? 3.8 : 3;
+        const bodySquish = animal.kind === "cow" ? 0.74 : 0.7;
 
         ctx.fillStyle = style.body;
         ctx.strokeStyle = style.outline;
@@ -1679,15 +1679,15 @@ function drawVillagers(
 
             if (tex) {
                 drawIsoSprite(ctx, tex, sx, sy, {
-                    heightScale: 0.6,
-                    widthScale: 0.6,
+                    heightScale: 0.7,
+                    widthScale: 0.8,
                     offsetY: -1,
                     flipX: v.facing === "left"
                 });
             } else {
                 ctx.fillStyle = VILLAGER_COLOR;
                 ctx.beginPath();
-                ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+                ctx.ellipse(cx, cy, 3.4, 3, 0, 0, Math.PI * 2);
                 ctx.fill();
 
                 ctx.strokeStyle = "rgba(255,255,255,0.7)";
