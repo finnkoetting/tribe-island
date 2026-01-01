@@ -8,6 +8,7 @@ import { loadCamera, saveCamera } from "../../src/game/persistence/storage/camer
 import { getBuildingSize } from "../../src/game/domains/buildings/model/buildingSizes";
 import type { BuildingTypeId, GameState, ResourceId, Vec2 } from "../../src/game/types/GameState";
 import WorldCanvas from "./WorldCanvas";
+import LoadingOverlay from "./LoadingOverlay";
 import { AssignVillagerModal } from "../../src/ui/components/AssignVillagerModal";
 import BuildBar from "../../src/ui/game/hud/BuildBar";
 import { UI_THEME as THEME } from "../../src/ui/theme";
@@ -24,23 +25,34 @@ import {
 } from "../../src/game/content/buildConfig";
 
 const MIN_SAVE_INTERVAL_MS = 5000;
+const MIN_LOADING_MS = 3500; // ensure loading overlay visible at least this long (ms)
 
 export default function GameClient() {
+    const [hydrated, setHydrated] = useState(false);
     const [initialLoad] = useState(() => (typeof window === "undefined" ? null : loadGameState()));
 
     const [seed, setSeed] = useState<number>(() => {
-        if (initialLoad?.state.seed) return initialLoad.state.seed;
-        if (typeof window === "undefined") return Date.now();
-        const storedSeed = loadSeed();
-        return storedSeed ?? Date.now();
+        if (initialLoad?.state?.seed) return initialLoad.state.seed;
+        return 0; // will be set after hydration
     });
-    const [st, setSt] = useState<GameState>(() => {
+
+    const [st, setSt] = useState<GameState | null>(() => {
         if (initialLoad?.state) return initialLoad.state;
-        if (typeof window === "undefined") return engine.create.createGame(Date.now());
-        const seedFromStorage = loadSeed() ?? Date.now();
-        return engine.create.createGame(seedFromStorage);
+        return null; // create on client after hydration
     });
+    const stRef = useRef<GameState | null>(st);
     const [initialCamera] = useState(() => (typeof window === "undefined" ? null : loadCamera()));
+
+    // Loading / initialization state
+    const [isInitializing, setIsInitializing] = useState<boolean>(true);
+    const initStartRef = useRef<number | null>(null);
+    const initInFlightRef = useRef<boolean>(false);
+    const [steps, setSteps] = useState<Array<{ id: string; label: string; status: "todo" | "wip" | "done" }>>([
+        { id: "restore", label: "Dorfbewohner wecken...", status: "done" },
+        { id: "map", label: "Häuser reparieren...", status: "todo" },
+        { id: "textures", label: "Bäume schütteln...", status: "todo" },
+        { id: "finish", label: "Lagerfeuer anzüngen...", status: "todo" }
+    ]);
 
     const cameraSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastRef = useRef<number | null>(null);
@@ -71,23 +83,41 @@ export default function GameClient() {
     }
 
     useEffect(() => {
+        if (!hydrated) setHydrated(true);
+    }, [hydrated]);
+
+    useEffect(() => {
+        if (!hydrated) return;
+        setSeed(prev => {
+            if (prev) return prev;
+            const storedSeed = loadSeed();
+            return storedSeed ?? Date.now();
+        });
+    }, [hydrated]);
+
+    useEffect(() => {
+        stRef.current = st;
+    }, [st]);
+
+    useEffect(() => {
         if (typeof window === "undefined") return;
         saveSeed(seed);
     }, [seed]);
 
     useEffect(() => {
+        if (!hydrated) return;
         const loop = (t: number) => {
             if (lastRef.current === null) lastRef.current = t;
             const dt = Math.min(250, Math.max(0, t - lastRef.current));
             lastRef.current = t;
-            setSt(prev => engine.tick.tick(prev, dt));
+            setSt(prev => prev ? engine.tick.tick(prev, dt) : prev);
             rafRef.current = requestAnimationFrame(loop);
         };
         rafRef.current = requestAnimationFrame(loop);
         return () => {
             if (rafRef.current) cancelAnimationFrame(rafRef.current);
         };
-    }, []);
+    }, [hydrated]);
 
     useEffect(() => () => {
         if (cameraSaveTimeout.current) clearTimeout(cameraSaveTimeout.current);
@@ -103,6 +133,105 @@ export default function GameClient() {
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     }, []);
+
+    // Async initialization: generate map and preload textures while showing overlay
+    useEffect(() => {
+        if (!isInitializing || !hydrated) return;
+        if (initInFlightRef.current) return;
+        initInFlightRef.current = true;
+        let cancelled = false;
+        if (!initStartRef.current) initStartRef.current = Date.now();
+        let watchdog: ReturnType<typeof setTimeout> | null = null;
+
+        async function init() {
+            try {
+                watchdog = setTimeout(() => {
+                    if (cancelled) return;
+                    setSteps(s => s.map(step => ({ ...step, status: "done" })));
+                    setIsInitializing(false);
+                }, MIN_LOADING_MS + 1500);
+
+                // mark map generation
+                setSteps(s => s.map(step => (step.id === "map" ? { ...step, status: "wip" } : step)));
+                await new Promise((r) => setTimeout(r, 0)); // yield so overlay can render
+                if (cancelled) return;
+
+                // create game state if we don't already have one (e.g. restored save)
+                let game = stRef.current;
+                if (!game) {
+                    const seedFromStorage = loadSeed() ?? Date.now();
+                    game = engine.create.createGame(seedFromStorage);
+                    if (cancelled) return;
+                    setSt(game);
+                }
+                setSteps(s => s.map(step => (step.id === "map" ? { ...step, status: "done" } : step)));
+
+                // preload textures (also on reload so the overlay stays visible consistently)
+                setSteps(s => s.map(step => (step.id === "textures" ? { ...step, status: "wip" } : step)));
+                const needed = [
+                    "objects/tree/1",
+                    "objects/tree/2",
+                    "objects/stone/1",
+                    "objects/stone/2",
+                    "objects/stone/3",
+                    "objects/villager/female/1",
+                    "objects/villager/male/1",
+                    "objects/cow",
+                    "objects/dog",
+                    "objects/sheep",
+                    "buildings/campfire/lvl1",
+                    "buildings/campfire/lvl2",
+                    "buildings/campfire/lvl3",
+                    "objects/berrybush",
+                    "objects/mushroom/1",
+                    "objects/mushroom/2",
+                    "objects/mushroom/3"
+                ];
+                try {
+                    const preload = import("../../src/ui/game/textures/loader").then(m => m.preloadTextures(needed));
+                    const guard = new Promise(resolve => setTimeout(resolve, 2200)); // prevent stuck progress
+                    await Promise.race([
+                        Promise.all([
+                            preload,
+                            // give WorldCanvas a tick to start loading its tile bitmaps
+                            new Promise(r => setTimeout(r, 120))
+                        ]),
+                        guard
+                    ]);
+                } catch (err) {
+                    console.warn("Texture preload failed", err);
+                }
+                if (cancelled) return;
+                setSteps(s => s.map(step => (step.id === "textures" ? { ...step, status: "done" } : step)));
+
+                // finalize
+                setSteps(s => s.map(step => (step.id === "finish" ? { ...step, status: "wip" } : step)));
+                await new Promise(r => setTimeout(r, 80));
+                if (cancelled) return;
+                setSteps(s => s.map(step => (step.id === "finish" ? { ...step, status: "done" } : step)));
+
+                // ensure minimum visible loading time from the start of init
+                const start = initStartRef.current ?? Date.now();
+                const elapsed = Date.now() - start;
+                const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+                if (remaining > 0) {
+                    await new Promise(r => setTimeout(r, remaining));
+                    if (cancelled) return;
+                }
+
+                setIsInitializing(false);
+            } finally {
+                initInFlightRef.current = false;
+                if (watchdog) clearTimeout(watchdog);
+            }
+        }
+
+        init();
+        return () => {
+            cancelled = true;
+            if (watchdog) clearTimeout(watchdog);
+        };
+    }, [isInitializing, hydrated]);
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -151,6 +280,7 @@ export default function GameClient() {
 
     const handleSelectBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
+        if (!st) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(type);
         setBuildMenuOpen(false);
@@ -158,8 +288,9 @@ export default function GameClient() {
 
     const handleTileClick = (pos: Vec2) => {
         setSt(prev => {
+            if (!prev) return prev;
             const building = findBuildingAt(prev, pos);
-            let next: GameState = { ...prev, selection: { kind: "tile", pos } };
+            let next: GameState = { ...(prev as GameState), selection: { kind: "tile", pos } } as GameState;
             setBuildingModalOpen(false);
 
             if (building) {
@@ -181,6 +312,7 @@ export default function GameClient() {
 
     const handleCollect = (buildingId: string) => {
         setSt(prev => {
+            if (!prev) return prev;
             const next = engine.commands.collectFromBuilding(prev, buildingId);
             queueSave(next);
             return next;
@@ -189,6 +321,7 @@ export default function GameClient() {
 
     const handleUpgrade = (buildingId: string) => {
         setSt(prev => {
+            if (!prev) return prev;
             const next = engine.commands.upgradeBuilding(prev, buildingId);
             queueSave(next);
             return next;
@@ -204,22 +337,26 @@ export default function GameClient() {
 
     const handlePlanTutorialBuild = (type: BuildingTypeId) => {
         if (!BUILDABLE_TYPE_SET.has(type)) return;
+        if (!st) return;
         if (isTutorialBuildLocked(type, st.quests)) return;
         setBuildMode(type);
     };
 
-    return (
-        <div
-            style={{
-                position: "relative",
-                minHeight: "100vh",
-                overflow: "hidden",
-                background: THEME.background,
-                color: THEME.text,
-                fontFamily: "Space Grotesk, 'Segoe UI', sans-serif"
-            }}
-        >
-            <div style={{ position: "absolute", inset: 0 }}>
+    if (!hydrated) return null;
+
+return (
+    <div
+        style={{
+            position: "relative",
+            minHeight: "100vh",
+            overflow: "hidden",
+            background: THEME.background,
+            color: THEME.text,
+            fontFamily: "Space Grotesk, 'Segoe UI', sans-serif"
+        }}
+    >
+        <div style={{ position: "absolute", inset: 0 }}>
+            {st ? (
                 <WorldCanvas
                     st={st}
                     buildMode={buildMode}
@@ -233,8 +370,10 @@ export default function GameClient() {
                     }}
                     onDragActive={setIsDragging}
                 />
-            </div>
+            ) : null}
+        </div>
 
+        {st && (
             <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 <TutorialPanel quests={st.quests} onSelectBuild={handlePlanTutorialBuild} villagers={st.villagers} />
                 <TopRightResources st={st} />
@@ -248,6 +387,7 @@ export default function GameClient() {
                     onUpgrade={handleUpgrade}
                     onStartTask={(buildingId, taskId) => {
                         setSt(prev => {
+                            if (!prev) return prev;
                             const next = engine.commands.startBuildingTask(prev, buildingId, taskId);
                             queueSave(next);
                             return next;
@@ -315,11 +455,13 @@ export default function GameClient() {
                     villagers={Object.values(st.villagers).filter(v => v.state === "alive" && !(st.selection.kind === "building" && st.buildings[st.selection.id].assignedVillagerIds.includes(v.id)))}
                     assigned={(st.selection.kind === "building" && st.buildings[st.selection.id]) ? st.buildings[st.selection.id].assignedVillagerIds.map(id => st.villagers[id]).filter(Boolean).filter(v => v.state === "alive") : []}
                     onAssign={(vid: string) => setSt(prev => {
+                        if (!prev) return prev;
                         const next = engine.commands.assignVillagerToBuilding(prev, vid, st.selection.kind === "building" ? st.selection.id : null);
                         queueSave(next);
                         return next;
                     })}
                     onRemove={(vid: string) => setSt(prev => {
+                        if (!prev) return prev;
                         const next = engine.commands.assignVillagerToBuilding(prev, vid, null);
                         queueSave(next);
                         return next;
@@ -360,6 +502,10 @@ export default function GameClient() {
                     onCloseBuildingModal={() => setBuildingModalOpen(false)}
                 />
             </div>
-        </div>
-    );
+        )}
+
+        {isInitializing && <LoadingOverlay steps={steps} />}
+
+    </div>
+);
 }

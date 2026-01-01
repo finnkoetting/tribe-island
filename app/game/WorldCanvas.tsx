@@ -20,7 +20,7 @@ import mountainTile3 from "../../src/ui/game/textures/terrain/mountain/3.png";
 import waterTile2 from "../../src/ui/game/textures/terrain/water/2.png";
 import waterTile3 from "../../src/ui/game/textures/terrain/water/3.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
-import { getTextureBitmap, preloadTextures } from "../../src/ui/game/textures/loader";
+import { getTextureBitmap } from "../../src/ui/game/textures/loader";
 
 const TILE_W = 64;
 const TILE_H = 32;
@@ -518,9 +518,12 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         berryBushTexture,
         mushroomTextures,
         campfireTexture,
+        campfireLvl2Texture,
+        campfireLvl3Texture,
         collectorTexture,
         cowTexture,
         sheepTexture,
+        dogTexture,
         onFpsUpdate
     ]);
 
@@ -656,7 +659,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
         const nextX = beforeX - mx / nextZ;
         const nextY = beforeY - my / nextZ;
 
-        setCam((prev) => clampCam({ x: nextX, y: nextY, z: nextZ }, vw, vh));
+        setCam(() => clampCam({ x: nextX, y: nextY, z: nextZ }, vw, vh));
     };
 
     const cursor = drag.active ? "grabbing" : buildMode ? (canPlaceHover ? "pointer" : "not-allowed") : "default";

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import type { BuildingTypeId } from "../../../../src/game/types/GameState";
-import { THEME, EDGE_SHADOW } from "../theme/themeTokens";
+import { THEME } from "../theme/themeTokens";
 
 type HudButtonProps = {
     label: string;
