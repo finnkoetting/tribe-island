@@ -21,6 +21,8 @@ import waterTile2 from "../../src/ui/game/textures/terrain/water/2.png";
 import waterTile3 from "../../src/ui/game/textures/terrain/water/3.png";
 import waterTile1 from "../../src/ui/game/textures/terrain/water/1.png";
 import { getTextureBitmap } from "../../src/ui/game/textures/loader";
+import { getLevelSpec } from "../../src/game/domains/buildings/model/buildingLevels";
+import { canAffordCost, formatCost } from "../../src/game/domains/buildings/model/buildingCosts";
 
 const TILE_W = 64;
 const TILE_H = 32;
@@ -132,6 +134,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
     const fpsFrames = useRef(0);
     const fpsLast = useRef(0);
     const [assignMode, setAssignMode] = useState<boolean>(false);
+    const [upgradeMode, setUpgradeMode] = useState<boolean>(false);
     const [hoverUiId, setHoverUiId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -140,6 +143,7 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
 
     useEffect(() => {
         setAssignMode(false);
+        setUpgradeMode(false);
     }, [st.selection]);
 
     const angleDeg = 0;
@@ -938,6 +942,15 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                         .map(id => st.villagers[id])
                         .filter(Boolean) as Array<typeof st.villagers[string]>;
 
+                    const currentLevel = b.level ?? 1;
+                    const nextLevel = currentLevel + 1;
+                    const currentLevelSpec = getLevelSpec(b.type, currentLevel);
+                    const nextLevelSpec = getLevelSpec(b.type, nextLevel);
+                    const upgradeCost = nextLevelSpec?.cost ?? null;
+                    const canAffordUpgrade = nextLevelSpec ? (upgradeCost ? canAffordCost(st.inventory, upgradeCost) : true) : false;
+                    const upgradeCostLabel = upgradeCost ? formatCost(upgradeCost) : "Keine Kosten";
+                    const upgradeDisabled = !nextLevelSpec || (upgradeCost && !canAffordUpgrade);
+
                     return (
                         <div
                             key={"building-menu-" + b.id}
@@ -974,20 +987,19 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                                 ) : null}
                             </div>
 
-                            {!assignMode && (
+                            {!assignMode && !upgradeMode && (
                                 <>
-                                    {assignedVillagers.length ? (
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                                            <div style={{ fontSize: 12, fontWeight: 800, color: "#2a1608" }}>Zugewiesen:</div>
-                                            <div style={{ display: "flex", gap: 6 }}>
-                                                {assignedVillagers.map(v => (
-                                                    <div key={v.id} style={{ padding: "6px 8px", borderRadius: 10, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(0,0,0,0.08)", fontSize: 13, color: "#2f1b0c", fontWeight: 800 }}>
-                                                        {v.name}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 800, color: "#2a1608" }}>Zugewiesen:</div>
+                                        <div style={{ display: "flex", gap: 6 }}>
+                                            {assignedVillagers.length ? assignedVillagers.map(v => (
+                                                <div key={v.id} style={{ padding: "6px 8px", borderRadius: 10, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(0,0,0,0.08)", fontSize: 13, color: "#2f1b0c", fontWeight: 800 }}>
+                                                    {v.name}
+                                                </div>
+                                            )) : <span style={{ fontSize: 13, color: "#5c3e1e", fontStyle: "italic" }}>Keine</span>}
                                         </div>
-                                    ) : null}
+                                    </div>
+
                                     <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
                                         {tasks.length ? tasks.map(t => {
                                             const id = `task-${t.id}`;
@@ -1005,12 +1017,12 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                                                         textAlign: "left",
                                                         pointerEvents: "auto",
                                                         border: "1px solid rgba(255,255,255,0.28)",
-                                                        boxShadow: hovered ? "0 10px 26px rgba(0,0,0,0.38)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
-                                                        background: hovered ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.16)",
+                                                        boxShadow: hovered ? "0 6px 14px rgba(0,0,0,0.22)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
+                                                        background: hovered ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.16)",
                                                         color: "#2f1b0c",
                                                         fontWeight: 800,
                                                         fontSize: 13,
-                                                        transform: hovered ? "translateY(-3px)" : "none",
+                                                        transform: hovered ? "translateY(-1px)" : "none",
                                                         transition: "box-shadow .18s ease, transform .12s ease, background .12s ease"
                                                     }}
                                                 >
@@ -1020,61 +1032,70 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                                         }) : ""}
                                     </div>
 
-                                    <div style={{ height: 1, background: "rgba(255,255,255,0.18)", marginTop: 4 }} />
+                                    <div style={{ height: 1, background: "rgba(255,255,255,0.18)", marginTop: 6 }} />
 
-                                    <div style={{ marginTop: 4, display: "flex", justifyContent: "center", gap: 10 }}>
+                                    <div style={{ marginTop: 6, display: "flex", justifyContent: "center", gap: 10 }}>
                                         <button
-                                            onClick={() => setAssignMode(true)}
+                                            title="Bewohner zuweisen"
+                                            onClick={() => {
+                                                setAssignMode(true);
+                                                setUpgradeMode(false);
+                                            }}
                                             onMouseEnter={() => setHoverUiId("assign-btn")}
                                             onMouseLeave={() => setHoverUiId(null)}
                                             style={{
-                                                width: 56,
-                                                height: 56,
-                                                borderRadius: 12,
+                                                width: 44,
+                                                height: 44,
+                                                borderRadius: 10,
                                                 fontWeight: 900,
+                                                padding: "0 14px",
                                                 cursor: "pointer",
                                                 pointerEvents: "auto",
-                                                background: "linear-gradient(180deg, #ffeaa7 0%, #ffc857 45%, #f4a63a 100%)",
-                                                border: "2px solid rgba(255, 207, 132, 0.88)",
-                                                boxShadow: hoverUiId === "assign-btn" ? "0 18px 44px rgba(0,0,0,0.5)" : "0 12px 40px rgba(0,0,0,0.45), inset 0 2px 0 rgba(255,255,255,0.35)",
-                                                color: "#4a2c11",
-                                                fontSize: 13,
+                                                background: "rgba(255,255,255,0.12)",
+                                                border: "1px solid rgba(255,255,255,0.08)",
+                                                boxShadow: hoverUiId === "assign-btn" ? "0 6px 14px rgba(0,0,0,0.18)" : "0 6px 18px rgba(0,0,0,0.14)",
+                                                color: "#3b2a12",
+                                                fontSize: 14,
                                                 display: "flex",
-                                                flexDirection: "column",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                gap: 2
+                                                gap: 6
                                             }}
                                         >
-                                            <span role="img" aria-label="Villager" style={{ fontSize: 18, lineHeight: 1 }}>🧑‍🌾</span>
-                                            <span style={{ fontSize: 11 }}>Zuweisen</span>
+                                            <span role="img" aria-label="Villager" style={{ fontSize: 16, lineHeight: 1 }}>🧑‍🌾</span>
                                         </button>
 
                                         <button
-                                            onClick={() => onUpgrade?.(b.id)}
+                                            title={nextLevelSpec ? "Upgrade öffnen" : "Maximale Stufe erreicht"}
+                                            disabled={!nextLevelSpec}
+                                            onClick={() => {
+                                                if (!nextLevelSpec) return;
+                                                setUpgradeMode(true);
+                                                setAssignMode(false);
+                                            }}
                                             onMouseEnter={() => setHoverUiId("upgrade-btn")}
                                             onMouseLeave={() => setHoverUiId(null)}
                                             style={{
-                                                width: 56,
-                                                height: 56,
-                                                borderRadius: 12,
-                                                fontWeight: 900,
-                                                cursor: "pointer",
+                                                width: "100%",
+                                                height: 44,
+                                                borderRadius: 10,
+                                                cursor: nextLevelSpec ? "pointer" : "not-allowed",
                                                 pointerEvents: "auto",
-                                                background: "linear-gradient(180deg, #d7f8ff 0%, #8ed9ff 50%, #4fb2e6 100%)",
-                                                border: "2px solid rgba(255,255,255,0.7)",
-                                                boxShadow: hoverUiId === "upgrade-btn" ? "0 18px 44px rgba(0,0,0,0.45)" : "0 12px 40px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.45)",
-                                                color: "#0b3c59",
+                                                background: nextLevelSpec ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.08)",
+                                                border: "1px solid rgba(255,255,255,0.08)",
+                                                boxShadow: hoverUiId === "upgrade-btn" && nextLevelSpec ? "0 6px 14px rgba(0,0,0,0.18)" : "0 6px 18px rgba(0,0,0,0.14)",
+                                                color: nextLevelSpec ? "#2f1b0c" : "#7a5a2e",
+                                                fontWeight: 800,
                                                 fontSize: 13,
                                                 display: "flex",
-                                                flexDirection: "column",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                gap: 2
+                                                gap: 8,
+                                                opacity: nextLevelSpec ? 1 : 0.6
                                             }}
                                         >
-                                            <span role="img" aria-label="Upgrade" style={{ fontSize: 18, lineHeight: 1 }}>⬆️</span>
-                                            <span style={{ fontSize: 11 }}>Upgrade</span>
+                                            <span role="img" aria-label="Upgrade" style={{ fontSize: 16, lineHeight: 1 }}>⬆️</span>
+                                            <span>Upgrade</span>
                                         </button>
                                     </div>
                                 </>
@@ -1100,68 +1121,156 @@ export default function WorldCanvas({ st, buildMode, onTileClick, onHover, onCan
                                         </button>
                                     </div>
 
-                                                    {assignedVillagers.length ? (
-                                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(1, minmax(0, 1fr))" }}>
-                                                            {assignedVillagers.map(v => {
-                                                                const id = `assigned-${v.id}`;
-                                                                const hovered = hoverUiId === id;
-                                                                return (
-                                                                    <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 10, background: hovered ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.06)", border: "1px solid rgba(0,0,0,0.06)", transition: "background .12s ease" }}
-                                                                        onMouseEnter={() => setHoverUiId(id)}
-                                                                        onMouseLeave={() => setHoverUiId(null)}
-                                                                    >
-                                                                        <div style={{ fontWeight: 800, color: "#2f1b0c" }}>{v.name} <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>· {v.job}</span></div>
-                                                                        <button
-                                                                            onClick={(e) => { e.stopPropagation(); onRemoveAssignedVillager?.(v.id, b.id); }}
-                                                                            aria-label={`Entferne ${v.name}`}
-                                                                            onMouseEnter={() => setHoverUiId(`${id}-remove`)}
-                                                                            onMouseLeave={() => setHoverUiId(null)}
-                                                                            style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: hoverUiId === `${id}-remove` ? "rgba(255,0,0,0.12)" : "rgba(0,0,0,0.06)", cursor: "pointer", fontWeight: 800, transition: "background .12s ease" }}
-                                                                        >
-                                                                            ✖
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    ) : null}
-
-                                                    {availableVillagers.length ? (
-                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                                                {availableVillagers.map(v => {
-                                                    const id = `avail-${v.id}`;
-                                                    const hovered = hoverUiId === id;
-                                                    return (
+                                    {assignedVillagers.length ? (
+                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(1, minmax(0, 1fr))" }}>
+                                            {assignedVillagers.map(v => {
+                                                const id = `assigned-${v.id}`;
+                                                const hovered = hoverUiId === id;
+                                                return (
+                                                    <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 10, background: hovered ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.06)", border: "1px solid rgba(0,0,0,0.06)", transition: "background .12s ease" }}
+                                                        onMouseEnter={() => setHoverUiId(id)}
+                                                        onMouseLeave={() => setHoverUiId(null)}
+                                                    >
+                                                        <div style={{ fontWeight: 800, color: "#2f1b0c" }}>{v.name} <span style={{ fontSize: 12, opacity: 0.85, fontWeight: 600 }}>· {v.job}</span></div>
                                                         <button
-                                                            key={v.id}
-                                                            onClick={() => onAssignVillager?.(v.id, b.id)}
-                                                            onMouseEnter={() => setHoverUiId(id)}
+                                                            onClick={(e) => { e.stopPropagation(); onRemoveAssignedVillager?.(v.id, b.id); }}
+                                                            aria-label={`Entferne ${v.name}`}
+                                                            onMouseEnter={() => setHoverUiId(`${id}-remove`)}
                                                             onMouseLeave={() => setHoverUiId(null)}
-                                                            style={{
-                                                                padding: "10px 12px",
-                                                                borderRadius: 12,
-                                                                textAlign: "left",
-                                                                cursor: "pointer",
-                                                                border: "1px solid rgba(255,255,255,0.28)",
-                                                                background: hovered ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.16)",
-                                                                boxShadow: hovered ? "0 10px 26px rgba(0,0,0,0.36)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
-                                                                color: "#2f1b0c",
-                                                                fontWeight: 800,
-                                                                display: "grid",
-                                                                gap: 4,
-                                                                transform: hovered ? "translateY(-3px)" : "none",
-                                                                transition: "box-shadow .12s ease, transform .12s ease, background .12s ease"
-                                                            }}
+                                                            style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: hoverUiId === `${id}-remove` ? "rgba(255,0,0,0.06)" : "rgba(0,0,0,0.06)", cursor: "pointer", fontWeight: 800, transition: "background .12s ease" }}
                                                         >
-                                                            <span>{v.name}</span>
-                                                            <span style={{ fontSize: 12, opacity: 0.8 }}>{v.job}</span>
+                                                            ✖
                                                         </button>
-                                                    );
-                                                })}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null}
+
+                                    {availableVillagers.length ? (
+                                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                                            {availableVillagers.map(v => {
+                                                const id = `avail-${v.id}`;
+                                                const hovered = hoverUiId === id;
+                                                return (
+                                                    <button
+                                                        key={v.id}
+                                                        onClick={() => onAssignVillager?.(v.id, b.id)}
+                                                        onMouseEnter={() => setHoverUiId(id)}
+                                                        onMouseLeave={() => setHoverUiId(null)}
+                                                        style={{
+                                                            padding: "10px 12px",
+                                                            borderRadius: 12,
+                                                            textAlign: "left",
+                                                            cursor: "pointer",
+                                                            border: "1px solid rgba(255,255,255,0.28)",
+                                                            background: hovered ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.16)",
+                                                            boxShadow: hovered ? "0 6px 14px rgba(0,0,0,0.22)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
+                                                            color: "#2f1b0c",
+                                                            fontWeight: 800,
+                                                            display: "grid",
+                                                            gap: 4,
+                                                            transform: hovered ? "translateY(-1px)" : "none",
+                                                            transition: "box-shadow .12s ease, transform .12s ease, background .12s ease"
+                                                        }}
+                                                    >
+                                                        <span>{v.name}</span>
+                                                        <span style={{ fontSize: 12, opacity: 0.8 }}>{v.job}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div style={{ fontSize: 13, opacity: 0.85, color: "#3d2410" }}>Keine freien Bewohner verfügbar.</div>
                                     )}
+                                </div>
+                            )}
+
+                            {upgradeMode && (
+                                <div style={{ display: "grid", gap: 10 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                        <div style={{ fontWeight: 900, fontSize: 14, color: "#2a1608" }}>Gebäude-Upgrade</div>
+                                        <button
+                                            onClick={() => setUpgradeMode(false)}
+                                            style={{
+                                                padding: "6px 10px",
+                                                borderRadius: 10,
+                                                border: "1px solid rgba(255,255,255,0.28)",
+                                                background: "rgba(255,255,255,0.16)",
+                                                cursor: "pointer",
+                                                fontWeight: 800,
+                                                color: "#2f1b0c"
+                                            }}
+                                        >
+                                            Zurück
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(0,0,0,0.08)" }}>
+                                        <div style={{ fontWeight: 800, color: "#2f1b0c", fontSize: 13 }}>Aktuelle Stufe: {currentLevel}</div>
+                                        <div style={{ fontWeight: 800, color: "#2f1b0c", fontSize: 13 }}>Nächste Stufe: {nextLevelSpec ? nextLevel : "-"}</div>
+                                    </div>
+
+                                    {nextLevelSpec ? (
+                                        <div style={{ display: "grid", gap: 10, padding: "10px 12px", borderRadius: 12, background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div style={{ fontWeight: 900, color: "#2a1608", fontSize: 13 }}>Kosten</div>
+                                                <div style={{ fontSize: 12, fontWeight: 800, color: canAffordUpgrade ? "#2f1b0c" : "#b45309" }}>{upgradeCostLabel}</div>
+                                            </div>
+                                            <div style={{ display: "grid", gap: 6 }}>
+                                                {nextLevelSpec.workers ? (
+                                                    <div style={{ fontSize: 12, color: "#4a2b12", opacity: 0.95 }}>{`Arbeitsplätze: ${currentLevelSpec?.workers ?? 0} -> ${nextLevelSpec.workers}`}</div>
+                                                ) : null}
+                                                {nextLevelSpec.residents ? (
+                                                    <div style={{ fontSize: 12, color: "#4a2b12", opacity: 0.95 }}>{`Betten: ${currentLevelSpec?.residents ?? 0} -> ${nextLevelSpec.residents}`}</div>
+                                                ) : null}
+                                                {typeof nextLevelSpec.outputAmount === "number" ? (
+                                                    <div style={{ fontSize: 12, color: "#4a2b12", opacity: 0.95 }}>{`Output: ${currentLevelSpec?.outputAmount ?? 0} -> ${nextLevelSpec.outputAmount}`}</div>
+                                                ) : null}
+                                                {typeof nextLevelSpec.taskDurationMs === "number" ? (
+                                                    <div style={{ fontSize: 12, color: "#4a2b12", opacity: 0.95 }}>{`Auftragsdauer: ${(currentLevelSpec?.taskDurationMs ?? 0) / 1000}s -> ${nextLevelSpec.taskDurationMs / 1000}s`}</div>
+                                                ) : null}
+                                                {nextLevelSpec.notes ? (
+                                                    <div style={{ fontSize: 12, color: "#4a2b12", opacity: 0.9 }}>{nextLevelSpec.notes}</div>
+                                                ) : null}
+                                            </div>
+                                            {!canAffordUpgrade && upgradeCost ? (
+                                                <div style={{ fontSize: 12, color: "#9a3412", fontWeight: 700 }}>Nicht genug Ressourcen.</div>
+                                            ) : null}
+                                        </div>
+                                    ) : (
+                                        <div style={{ fontSize: 13, color: "#5c3e1e", padding: "10px 12px", borderRadius: 12, background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+                                            Maximale Stufe erreicht.
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                                        <button
+                                            title="Upgrade starten"
+                                            disabled={upgradeDisabled}
+                                            onClick={() => {
+                                                if (upgradeDisabled) return;
+                                                onUpgrade?.(b.id);
+                                                setUpgradeMode(false);
+                                            }}
+                                            onMouseEnter={() => setHoverUiId("upgrade-confirm")}
+                                            onMouseLeave={() => setHoverUiId(null)}
+                                            style={{
+                                                padding: "10px 14px",
+                                                borderRadius: 10,
+                                                cursor: upgradeDisabled ? "not-allowed" : "pointer",
+                                                border: "1px solid rgba(255,255,255,0.14)",
+                                                background: upgradeDisabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.14)",
+                                                boxShadow: hoverUiId === "upgrade-confirm" && !upgradeDisabled ? "0 6px 14px rgba(0,0,0,0.2)" : "inset 0 1px 0 rgba(255,255,255,0.22)",
+                                                color: upgradeDisabled ? "#7a5a2e" : "#2f1b0c",
+                                                fontWeight: 800,
+                                                fontSize: 13,
+                                                opacity: upgradeDisabled ? 0.6 : 1
+                                            }}
+                                        >
+                                            Upgrade starten
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
