@@ -56,7 +56,7 @@ export const THEME = {
     },
 
     fonts: {
-        base: "\"Baloo 2\", \"Fredoka\", Nunito, Quicksand, sans-serif",
+        base: "\"Rubik\", \"Baloo 2\", \"Fredoka\", \"Quicksand\", sans-serif",
     },
 
     shadows: {

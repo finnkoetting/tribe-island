@@ -177,15 +177,15 @@ function BuildCard({ label, icon, selected, locked }: { label: string; icon: str
 }
 
 const layout = {
-	shell: {
-		position: "relative",
-		minHeight: "100vh",
-		background: "linear-gradient(180deg, #1c2a33 0%, #1f2f3b 40%, #24363f 70%, #1f2b35 100%)",
-		color: "#f5f1e7",
-		overflow: "hidden",
-		padding: "40px 32px 64px",
-		fontFamily: "'Signika', 'Nunito', sans-serif"
-	} as React.CSSProperties,
+		shell: {
+			position: "relative",
+			minHeight: "100vh",
+			background: "linear-gradient(180deg, #1c2a33 0%, #1f2f3b 40%, #24363f 70%, #1f2b35 100%)",
+			color: "#f5f1e7",
+			overflow: "hidden",
+			padding: "40px 32px 64px",
+			fontFamily: "'Rubik', 'Signika', sans-serif"
+		} as React.CSSProperties,
 	sky: {
 		position: "absolute",
 		top: 0,

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Nunito } from "next/font/google";
+import { Rubik } from "next/font/google";
 import { ModalProvider } from "../src/ui/components/ModalContext";
 
-const font = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
+const font = Rubik({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap" });
 
 export default function RootLayout({ children }: { children: ReactNode }) {
     return (
